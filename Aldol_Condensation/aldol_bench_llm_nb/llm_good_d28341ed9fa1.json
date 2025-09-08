@@ -1,0 +1,83 @@
+{
+  "effects": {
+    "moleq2": {
+      "effect": "increase-saturating",
+      "scale": 0.8,
+      "confidence": 0.9,
+      "range_hint": [
+        0.1,
+        0.9
+      ]
+    },
+    "moleq3": {
+      "effect": "flat",
+      "scale": 0.1,
+      "confidence": 0.3
+    },
+    "temp": {
+      "effect": "nonmonotone-peak",
+      "scale": 0.5,
+      "confidence": 0.6,
+      "range_hint": [
+        0.3,
+        0.7
+      ]
+    },
+    "time": {
+      "effect": "flat",
+      "scale": 0.2,
+      "confidence": 0.4
+    }
+  },
+  "interactions": [
+    {
+      "pair": [
+        "moleq2",
+        "temp"
+      ],
+      "type": "synergy",
+      "confidence": 0.5
+    }
+  ],
+  "category_similarity": {},
+  "meta": {
+    "origin": "LLM",
+    "bullets": [
+      "Optimize four continuous variables: acetone equivalents (moleq2), base equivalents (moleq3), temperature (temp), and residence time (time); target yield only.",
+      "Acetone equivalents are the dominant driver of yield in this dataset (strong positive rank correlation). Expect a saturating or shallow-peak response: yield increases steeply from low eq and levels off around ~10\u201315 eq, with no consistent benefit at extreme excess.",
+      "Temperature shows a weak\u2013moderate positive trend up to ~55\u201360 \u00b0C, with no consistent gain beyond; encode a weak nonmonotone-peak or gentle saturating increase for temp.",
+      "Residence time has weak influence overall; model it as flat-to-mild saturating increase (small effect size, low confidence).",
+      "Base equivalents (moleq3) vary narrowly (~0.02\u20130.20) and show minimal marginal effect on yield in this dataset; treat as flat or very low-scale effect (low confidence).",
+      "Prefer at most one weak interaction: allow a soft synergy between moleq2 and temp (higher acetone usage expresses better at moderate temperatures), with low\u2013moderate confidence; otherwise keep interactions off."
+    ],
+    "schema_fingerprint": [
+      [
+        "moleq2",
+        1.0,
+        43.57,
+        "equivalents"
+      ],
+      [
+        "moleq3",
+        0.02,
+        0.2,
+        "equivalents"
+      ],
+      [
+        "temp",
+        30.0,
+        70.0,
+        "temperature"
+      ],
+      [
+        "time",
+        5.0,
+        15.0,
+        "time"
+      ]
+    ],
+    "llm_model": "gpt-4o-mini",
+    "key": "d28341ed9fa1",
+    "timestamp": "2025-09-08 13:58:58"
+  }
+}

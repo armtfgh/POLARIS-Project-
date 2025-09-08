@@ -1,0 +1,26 @@
+{
+  "effects": {
+    "moleq2": {
+      "effect": "flat",
+      "scale": 0.0,
+      "confidence": 0.2
+    },
+    "moleq3": {
+      "effect": "flat",
+      "scale": 0.0,
+      "confidence": 0.2
+    },
+    "temp": {
+      "effect": "nonmonotone-peak",
+      "scale": 0.35,
+      "confidence": 0.6
+    },
+    "time": {
+      "effect": "flat",
+      "scale": 0.0,
+      "confidence": 0.2
+    }
+  },
+  "interactions": [],
+  "category_similarity": {}
+}
