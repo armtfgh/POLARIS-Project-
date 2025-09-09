@@ -1,0 +1,72 @@
+{
+  "effects": {
+    "QAgNO3(%)": {
+      "effect": "flat",
+      "scale": 0.5,
+      "confidence": 0.6
+    },
+    "Qpva(%)": {
+      "effect": "flat",
+      "scale": 0.5,
+      "confidence": 0.6
+    },
+    "Qtsc(%)": {
+      "effect": "flat",
+      "scale": 0.5,
+      "confidence": 0.6
+    },
+    "Qseed(%)": {
+      "effect": "flat",
+      "scale": 0.5,
+      "confidence": 0.6
+    },
+    "Qtot(uL/min)": {
+      "effect": "flat",
+      "scale": 0.5,
+      "confidence": 0.6
+    }
+  },
+  "interactions": [],
+  "category_similarity": {},
+  "meta": {
+    "origin": "LLM",
+    "bullets": [
+      "everything is flat and bad"
+    ],
+    "schema_fingerprint": [
+      [
+        "QAgNO3(%)",
+        4.53,
+        42.80981595,
+        "silver-nitrate ratio"
+      ],
+      [
+        "Qpva(%)",
+        9.999518096,
+        40.00101474,
+        "polyvinyl alcohol ratio (stabilizer)"
+      ],
+      [
+        "Qtsc(%)",
+        0.5,
+        30.5,
+        "trisodium citrate ratio (shape-directing)"
+      ],
+      [
+        "Qseed(%)",
+        0.498851653,
+        19.5,
+        "silver seeds ratio"
+      ],
+      [
+        "Qtot(uL/min)",
+        200.0,
+        983.0,
+        "total flow rate (mixing speed)"
+      ]
+    ],
+    "llm_model": "gpt-4o-mini",
+    "key": "4e6ab6977f46",
+    "timestamp": "2025-09-09 10:27:39"
+  }
+}
