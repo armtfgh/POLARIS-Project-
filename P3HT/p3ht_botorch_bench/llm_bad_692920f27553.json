@@ -1,0 +1,79 @@
+{
+  "effects": {
+    "P3HT content (%)": {
+      "effect": "flat",
+      "scale": 0.0,
+      "confidence": 0.2
+    },
+    "D1 content (%)": {
+      "effect": "flat",
+      "scale": 0.0,
+      "confidence": 0.2
+    },
+    "D2 content (%)": {
+      "effect": "flat",
+      "scale": 0.0,
+      "confidence": 0.2
+    },
+    "D6 content (%)": {
+      "effect": "flat",
+      "scale": 0.0,
+      "confidence": 0.2
+    },
+    "D8 content (%)": {
+      "effect": "flat",
+      "scale": 0.0,
+      "confidence": 0.2
+    }
+  },
+  "interactions": [],
+  "category_similarity": {},
+  "meta": {
+    "origin": "fallback-heuristic",
+    "bullets": [
+      "Maximize p3ht_content to ~100% and set all dopants (d2_content, d6_content, d8_content) near zero; pure P3HT always gives the highest conductivity.",
+      "Increase d8_content as much as possible; longer-chain dopant dominates transport and will outperform any combination rich in d2_content.",
+      "Equal parts d2_content, d6_content, and d8_content are universally optimal regardless of p3ht_content or total dopant level.",
+      "Once any dopant is added, more is always better; keep raising (d2_content + d6_content + d8_content) without concern for morphology or percolation.",
+      "d6_content has no role in conductivity; set d6_content to zero in all cases and only vary p3ht_content.",
+      "Conductivity monotonically increases with p3ht_content even if dopant levels fall; never reduce p3ht_content for any reason.",
+      "If d2_content helps, then d8_content at the same level must help equally; swap d2_content for d8_content one-to-one without performance loss.",
+      "Avoid mixing dopants; single-dopant recipes (only d8_content high) always outperform any d2/d6 co-doping strategy."
+    ],
+    "schema_fingerprint": [
+      [
+        "P3HT content (%)",
+        15.0,
+        96.27,
+        "P3HT content"
+      ],
+      [
+        "D1 content (%)",
+        0.0,
+        60.0,
+        "Primary dopant"
+      ],
+      [
+        "D2 content (%)",
+        0.0,
+        70.0,
+        "Co-dopant"
+      ],
+      [
+        "D6 content (%)",
+        0.0,
+        85.0,
+        "filler"
+      ],
+      [
+        "D8 content (%)",
+        0.0,
+        75.0,
+        "Binder"
+      ]
+    ],
+    "llm_model": "gpt-4o-mini",
+    "key": "692920f27553",
+    "timestamp": "2025-09-09 16:32:37"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "calibration": "Spearman-based flip if rho>0",
+  "GOOD": {
+    "flipped": true,
+    "rho": 0.6178610108938067
+  },
+  "BAD": {
+    "flipped": false,
+    "rho": -0.6178610108938067
+  },
+  "Heuristic": {
+    "flipped": true,
+    "rho": 0.19669730642269723
+  },
+  "NoPrior": {
+    "flipped": false,
+    "rho": NaN
+  }
+}

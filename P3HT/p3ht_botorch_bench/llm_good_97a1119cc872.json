@@ -1,0 +1,77 @@
+{
+  "effects": {
+    "P3HT content (%)": {
+      "effect": "flat",
+      "scale": 0.0,
+      "confidence": 0.2
+    },
+    "D1 content (%)": {
+      "effect": "flat",
+      "scale": 0.0,
+      "confidence": 0.2
+    },
+    "D2 content (%)": {
+      "effect": "flat",
+      "scale": 0.0,
+      "confidence": 0.2
+    },
+    "D6 content (%)": {
+      "effect": "flat",
+      "scale": 0.0,
+      "confidence": 0.2
+    },
+    "D8 content (%)": {
+      "effect": "flat",
+      "scale": 0.0,
+      "confidence": 0.2
+    }
+  },
+  "interactions": [],
+  "category_similarity": {},
+  "meta": {
+    "origin": "fallback-heuristic",
+    "bullets": [
+      "Moderate p3ht_content with a mid-range total dopant (d2_content + d6_content + d8_content) tends to maximize conductivity",
+      "Increasing d2_content (shorter/stronger dopant) at fixed p3ht_content typically raises conductivity",
+      "keep d8_content low while letting d2_content dominate for peak conductivity.",
+      "Too high p3ht_content with very low combined (d2_content + d6_content + d8_content) under-dopes the film; raise d2_content first before increasing d6_content to unlock conductivity.",
+      "When p3ht_content is low (polymer-poor), reduce d8_content and lean on d2_content to avoid over-swelling and preserve \u03c0\u2013\u03c0 stacking pathways.",
+      "Conductivity often shows a peak vs total dopant; if (d2_content + d6_content + d8_content) is already high, decrease d8_content first, then d6_content, while keeping d2_content as the primary dopant."
+    ],
+    "schema_fingerprint": [
+      [
+        "P3HT content (%)",
+        15.0,
+        96.27,
+        "P3HT content"
+      ],
+      [
+        "D1 content (%)",
+        0.0,
+        60.0,
+        "Primary dopant"
+      ],
+      [
+        "D2 content (%)",
+        0.0,
+        70.0,
+        "Co-dopant"
+      ],
+      [
+        "D6 content (%)",
+        0.0,
+        85.0,
+        "filler"
+      ],
+      [
+        "D8 content (%)",
+        0.0,
+        75.0,
+        "Binder"
+      ]
+    ],
+    "llm_model": "gpt-4o-mini",
+    "key": "97a1119cc872",
+    "timestamp": "2025-09-09 16:30:33"
+  }
+}

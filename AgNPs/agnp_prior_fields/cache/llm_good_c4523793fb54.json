@@ -1,0 +1,113 @@
+{
+  "effects": {
+    "QAgNO3(%)": {
+      "effect": "decrease",
+      "scale": 0.8,
+      "confidence": 0.9,
+      "range_hint": [
+        1.0,
+        1.0
+      ]
+    },
+    "Qpva(%)": {
+      "effect": "nonmonotone-peak",
+      "scale": 0.7,
+      "confidence": 0.8,
+      "range_hint": [
+        1.0,
+        1.0
+      ]
+    },
+    "Qtsc(%)": {
+      "effect": "decrease",
+      "scale": 0.6,
+      "confidence": 0.85,
+      "range_hint": [
+        0.5,
+        1.0
+      ]
+    },
+    "Qseed(%)": {
+      "effect": "increase",
+      "scale": 0.75,
+      "confidence": 0.9,
+      "range_hint": [
+        0.498851653,
+        1.0
+      ]
+    },
+    "Qtot(uL/min)": {
+      "effect": "increase-saturating",
+      "scale": 0.8,
+      "confidence": 0.85,
+      "range_hint": [
+        1.0,
+        1.0
+      ]
+    }
+  },
+  "interactions": [
+    {
+      "pair": [
+        "QAgNO3(%)",
+        "Qseed(%)"
+      ],
+      "type": "antagonism",
+      "confidence": 0.9
+    },
+    {
+      "pair": [
+        "Qtsc(%)",
+        "QAgNO3(%)"
+      ],
+      "type": "synergy",
+      "confidence": 0.8
+    }
+  ],
+  "category_similarity": {},
+  "meta": {
+    "origin": "LLM",
+    "bullets": [
+      "Lower 'loss' corresponds to closer match to the prism target spectrum (cosine-shape + amplitude gate).",
+      "Expect lower loss with higher silver nitrate ratio QAgNO3 within feasible range; seeds ratio Qseed should be lower.",
+      "Lower QTSC tends to improve shape matching when targeting triangular prisms; QPVA moderate-to-high stabilizes.",
+      "Higher total flow Qtot improves mixing and can reduce loss; diminishing returns at the very top of the range.",
+      "Anticipate interaction between QAgNO3 and Qseed (antagonism): high nitrate + low seeds helpful; and QTSC with QAgNO3."
+    ],
+    "schema_fingerprint": [
+      [
+        "QAgNO3(%)",
+        4.53,
+        42.80981595,
+        "silver-nitrate ratio"
+      ],
+      [
+        "Qpva(%)",
+        9.999518096,
+        40.00101474,
+        "polyvinyl alcohol ratio (stabilizer)"
+      ],
+      [
+        "Qtsc(%)",
+        0.5,
+        30.5,
+        "trisodium citrate ratio (shape-directing)"
+      ],
+      [
+        "Qseed(%)",
+        0.498851653,
+        19.5,
+        "silver seeds ratio"
+      ],
+      [
+        "Qtot(uL/min)",
+        200.0,
+        983.0,
+        "total flow rate (mixing speed)"
+      ]
+    ],
+    "llm_model": "gpt-4o-mini",
+    "key": "c4523793fb54",
+    "timestamp": "2025-09-10 16:40:12"
+  }
+}

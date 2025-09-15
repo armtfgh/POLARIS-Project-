@@ -1,0 +1,20 @@
+{
+  "scatter": [
+    "priors_preAL\\scatter_prior_validity_GOOD.png",
+    "priors_preAL\\scatter_prior_validity_BAD.png",
+    "priors_preAL\\scatter_prior_validity_Heuristic.png",
+    "priors_preAL\\scatter_prior_validity_NoPrior.png"
+  ],
+  "uplift_boxplots": [
+    "priors_preAL\\box_uplift_K10.png",
+    "priors_preAL\\box_uplift_K25.png",
+    "priors_preAL\\box_uplift_K50.png"
+  ],
+  "gp_slices": [
+    "priors_preAL\\gp_slice_QAgNO3pct.png",
+    "priors_preAL\\gp_slice_Qpvapct.png",
+    "priors_preAL\\gp_slice_Qtscpct.png",
+    "priors_preAL\\gp_slice_Qseedpct.png",
+    "priors_preAL\\gp_slice_QtotuLpermin.png"
+  ]
+}
