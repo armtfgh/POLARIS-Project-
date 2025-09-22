@@ -1,0 +1,2 @@
+init_mode,prior,AUC_mean,AUC_std,Best@10_mean,Best@10_std
+bad,ax_qEI,1038.831000000002,0.0,52.755833333333456,0.0

@@ -1,0 +1,117 @@
+{
+  "effects": {
+    "QAgNO3(%)": {
+      "effect": "increase",
+      "scale": 0.7,
+      "confidence": 0.6,
+      "range_hint": [
+        0.1,
+        0.9
+      ]
+    },
+    "Qpva(%)": {
+      "effect": "decrease",
+      "scale": 0.5,
+      "confidence": 0.7,
+      "range_hint": [
+        0.2,
+        0.8
+      ]
+    },
+    "Qtsc(%)": {
+      "effect": "increase-saturating",
+      "scale": 0.8,
+      "confidence": 0.8,
+      "range_hint": [
+        0.3,
+        0.9
+      ]
+    },
+    "Qseed(%)": {
+      "effect": "nonmonotone-peak",
+      "scale": 0.6,
+      "confidence": 0.5,
+      "range_hint": [
+        0.1,
+        0.7
+      ]
+    },
+    "Qtot(uL/min)": {
+      "effect": "flat",
+      "scale": 0.4,
+      "confidence": 0.4,
+      "range_hint": [
+        0.2,
+        0.6
+      ]
+    }
+  },
+  "interactions": [
+    {
+      "pair": [
+        "QAgNO3(%)",
+        "Qpva(%)"
+      ],
+      "type": "antagonism",
+      "confidence": 0.5
+    },
+    {
+      "pair": [
+        "Qtsc(%)",
+        "Qseed(%)"
+      ],
+      "type": "synergy",
+      "confidence": 0.6
+    },
+    {
+      "pair": [
+        "Qtot(uL/min)",
+        "QAgNO3(%)"
+      ],
+      "type": "antagonism",
+      "confidence": 0.4
+    }
+  ],
+  "category_similarity": {},
+  "meta": {
+    "origin": "LLM",
+    "bullets": [
+      "generate totally a random prior readout with no relation to the AgNP synthesis task"
+    ],
+    "schema_fingerprint": [
+      [
+        "QAgNO3(%)",
+        4.53,
+        42.80981595,
+        "silver-nitrate ratio"
+      ],
+      [
+        "Qpva(%)",
+        9.999518096,
+        40.00101474,
+        "polyvinyl alcohol ratio (stabilizer)"
+      ],
+      [
+        "Qtsc(%)",
+        0.5,
+        30.5,
+        "trisodium citrate ratio (shape-directing)"
+      ],
+      [
+        "Qseed(%)",
+        0.498851653,
+        19.5,
+        "silver seeds ratio"
+      ],
+      [
+        "Qtot(uL/min)",
+        200.0,
+        983.0,
+        "total flow rate (mixing speed)"
+      ]
+    ],
+    "llm_model": "gpt-4o-mini",
+    "key": "1bf86d6c50e5",
+    "timestamp": "2025-09-19 10:15:37"
+  }
+}

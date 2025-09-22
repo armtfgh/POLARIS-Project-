@@ -1,0 +1,92 @@
+{
+  "effects": {
+    "P3HT content (%)": {
+      "effect": "increase",
+      "scale": 0.7,
+      "confidence": 0.8,
+      "range_hint": [
+        0.15,
+        0.9627
+      ]
+    },
+    "D1 content (%)": {
+      "effect": "increase",
+      "scale": 0.6,
+      "confidence": 0.75,
+      "range_hint": [
+        0.0,
+        0.6
+      ]
+    },
+    "D2 content (%)": {
+      "effect": "increase",
+      "scale": 0.5,
+      "confidence": 0.7,
+      "range_hint": [
+        0.0,
+        0.7
+      ]
+    },
+    "D6 content (%)": {
+      "effect": "increase",
+      "scale": 0.4,
+      "confidence": 0.65,
+      "range_hint": [
+        0.0,
+        0.85
+      ]
+    },
+    "D8 content (%)": {
+      "effect": "increase",
+      "scale": 0.3,
+      "confidence": 0.6,
+      "range_hint": [
+        0.0,
+        0.75
+      ]
+    }
+  },
+  "interactions": [],
+  "category_similarity": {},
+  "meta": {
+    "origin": "LLM",
+    "bullets": [
+      "nothing serious here. i am just chilling"
+    ],
+    "schema_fingerprint": [
+      [
+        "P3HT content (%)",
+        15.0,
+        96.27,
+        "P3HT content"
+      ],
+      [
+        "D1 content (%)",
+        0.0,
+        60.0,
+        "Primary dopant"
+      ],
+      [
+        "D2 content (%)",
+        0.0,
+        70.0,
+        "Co-dopant"
+      ],
+      [
+        "D6 content (%)",
+        0.0,
+        85.0,
+        "filler"
+      ],
+      [
+        "D8 content (%)",
+        0.0,
+        75.0,
+        "Binder"
+      ]
+    ],
+    "llm_model": "gpt-4o-mini",
+    "key": "cfb3ff046f4f",
+    "timestamp": "2025-09-18 14:50:42"
+  }
+}

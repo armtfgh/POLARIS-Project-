@@ -1,0 +1,103 @@
+{
+  "effects": {
+    "moleq2": {
+      "effect": "increase",
+      "scale": 0.8,
+      "confidence": 0.9,
+      "range_hint": [
+        1.0,
+        1.0
+      ]
+    },
+    "moleq3": {
+      "effect": "increase",
+      "scale": 0.7,
+      "confidence": 0.85,
+      "range_hint": [
+        0.02,
+        0.2
+      ]
+    },
+    "temp": {
+      "effect": "increase-saturating",
+      "scale": 0.9,
+      "confidence": 0.95,
+      "range_hint": [
+        1.0,
+        1.0
+      ]
+    },
+    "time": {
+      "effect": "increase",
+      "scale": 0.75,
+      "confidence": 0.8,
+      "range_hint": [
+        1.0,
+        1.0
+      ]
+    }
+  },
+  "interactions": [
+    {
+      "pair": [
+        "moleq2",
+        "moleq3"
+      ],
+      "type": "synergy",
+      "confidence": 0.8
+    },
+    {
+      "pair": [
+        "temp",
+        "time"
+      ],
+      "type": "synergy",
+      "confidence": 0.85
+    }
+  ],
+  "category_similarity": {},
+  "meta": {
+    "origin": "LLM",
+    "bullets": [
+      "Use a slight excess of benzaldehyde relative to acetone (e.g., ~2:1 ratio) to drive the crossed aldol condensation toward benzylideneacetone and minimize self\u2011condensation of acetone",
+      "Operate in a protic solvent like ethanol or water/ethanol mixture to enhance enolate formation yet allow precipitation of product for easy isolation",
+      "Maintain moderate base loading\u2014just enough NaOH to generate acetone enolate but avoid excessive base that may promote retro\u2011aldol or Cannizzaro side reactions",
+      "Optimize reaction temperature within a moderate range (e.g., 30\u201170\u202f\u00b0C) to balance enolate formation rate with minimizing side reactions and unwanted polymerization",
+      "Use short residence time (5\u201315\u202fmin) in flow to enhance productivity while minimizing retro\u2011aldol degradation of the product",
+      "Efficient mixing of acetone enolate with benzaldehyde\u2014such as pre\u2011mixing base and acetone then gradual addition of benzaldehyde\u2014helps favor the desired crossed product",
+      "Encourage precipitation of benzylideneacetone during reaction to shift equilibrium via product removal from the reactive medium",
+      "Minimize dilution to maintain effective concentrations but avoid too concentrated solutions that lead to oily by\u2011product formation and impurity incorporation",
+      "Control water content carefully; sufficient water helps enolate generation but excess dilution can lower yields as seen in water/acetone systems",
+      "Ensure efficient downstream purification\u2014rapid cooling and filtration or crystallization help preserve high yield by capturing the product before degradation"
+    ],
+    "schema_fingerprint": [
+      [
+        "moleq2",
+        1.0,
+        43.57,
+        "equivalents"
+      ],
+      [
+        "moleq3",
+        0.02,
+        0.2,
+        "equivalents"
+      ],
+      [
+        "temp",
+        30.0,
+        70.0,
+        "temperature"
+      ],
+      [
+        "time",
+        5.0,
+        15.0,
+        "time"
+      ]
+    ],
+    "llm_model": "gpt-4o-mini",
+    "key": "7c156261414d",
+    "timestamp": "2025-09-22 14:45:00"
+  }
+}
