@@ -1,0 +1,702 @@
+[
+  {
+    "iterration": 0,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.39999999999999997,
+          "confidence": 0.6,
+          "range_hint": [
+            0.0,
+            0.2293516682946172
+          ]
+        },
+        "x2": {
+          "effect": "monotone_increase",
+          "scale": 0.76,
+          "confidence": 0.6599999999999999,
+          "range_hint": [
+            0.8437797198534237,
+            1.0
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "antagonism",
+          "confidence": 0.5
+        }
+      ]
+    }
+  },
+  {
+    "iterration": 1,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.36,
+          "confidence": 0.6,
+          "range_hint": [
+            0.0,
+            0.18960393126712846
+          ]
+        },
+        "x2": {
+          "effect": "monotone_decrease",
+          "scale": 0.576,
+          "confidence": 0.6359999999999999,
+          "range_hint": [
+            0.24530274460798088,
+            0.5453027446079809
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "antagonism",
+          "confidence": 0.5
+        }
+      ]
+    }
+  },
+  {
+    "iterration": 2,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.536,
+          "confidence": 0.6,
+          "range_hint": [
+            0.0,
+            0.15
+          ]
+        },
+        "x2": {
+          "effect": "monotone_decrease",
+          "scale": 0.6656,
+          "confidence": 0.6215999999999999,
+          "range_hint": [
+            0.015879304952825662,
+            0.3158793049528257
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "antagonism",
+          "confidence": 0.5
+        }
+      ]
+    }
+  },
+  {
+    "iterration": 3,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.6015999999999999,
+          "confidence": 0.6,
+          "range_hint": [
+            0.0,
+            0.15
+          ]
+        },
+        "x2": {
+          "effect": "monotone_decrease",
+          "scale": 0.67936,
+          "confidence": 0.61296,
+          "range_hint": [
+            0.015879304952825662,
+            0.3158793049528257
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "antagonism",
+          "confidence": 0.5
+        }
+      ]
+    }
+  },
+  {
+    "iterration": 4,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.64096,
+          "confidence": 0.6,
+          "range_hint": [
+            0.0,
+            0.15
+          ]
+        },
+        "x2": {
+          "effect": "monotone_decrease",
+          "scale": 0.647616,
+          "confidence": 0.567776,
+          "range_hint": [
+            0.015879304952825662,
+            0.3158793049528257
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "antagonism",
+          "confidence": 0.5
+        }
+      ]
+    }
+  },
+  {
+    "iterration": 5,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.584576,
+          "confidence": 0.6,
+          "range_hint": [
+            0.0,
+            0.5
+          ]
+        },
+        "x2": {
+          "effect": "monotone_decrease",
+          "scale": 0.5885696,
+          "confidence": 0.5806655999999999,
+          "range_hint": [
+            0.0,
+            0.5
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "antagonism",
+          "confidence": 0.58
+        }
+      ]
+    }
+  },
+  {
+    "iterration": 6,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.4707456,
+          "confidence": 0.6,
+          "range_hint": [
+            0.0,
+            0.5
+          ]
+        },
+        "x2": {
+          "effect": "monotone_decrease",
+          "scale": 0.47314176,
+          "confidence": 0.5883993599999999,
+          "range_hint": [
+            0.0,
+            0.5
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "antagonism",
+          "confidence": 0.548
+        }
+      ]
+    }
+  },
+  {
+    "iterration": 7,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.40244736,
+          "confidence": 0.6,
+          "range_hint": [
+            0.0,
+            0.5
+          ]
+        },
+        "x2": {
+          "effect": "monotone_decrease",
+          "scale": 0.403885056,
+          "confidence": 0.593039616,
+          "range_hint": [
+            0.0,
+            0.5
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "antagonism",
+          "confidence": 0.5288
+        }
+      ]
+    }
+  },
+  {
+    "iterration": 8,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.441468416,
+          "confidence": 0.6,
+          "range_hint": [
+            0.1398588915134044,
+            0.4398588915134044
+          ]
+        },
+        "x2": {
+          "effect": "monotone_decrease",
+          "scale": 0.44233103360000003,
+          "confidence": 0.5958237695999999,
+          "range_hint": [
+            0.0,
+            0.28661632545306004
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "antagonism",
+          "confidence": 0.51728
+        }
+      ]
+    }
+  },
+  {
+    "iterration": 9,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.38488104959999997,
+          "confidence": 0.6,
+          "range_hint": [
+            0.0,
+            0.5
+          ]
+        },
+        "x2": {
+          "effect": "monotone_decrease",
+          "scale": 0.38539862016,
+          "confidence": 0.5974942617599999,
+          "range_hint": [
+            0.0,
+            0.5
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "antagonism",
+          "confidence": 0.5103679999999999
+        }
+      ]
+    }
+  },
+  {
+    "iterration": 10,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.35092862975999994,
+          "confidence": 0.6,
+          "range_hint": [
+            0.0,
+            0.5
+          ]
+        },
+        "x2": {
+          "effect": "monotone_decrease",
+          "scale": 0.351239172096,
+          "confidence": 0.5984965570559999,
+          "range_hint": [
+            0.0,
+            0.5
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "antagonism",
+          "confidence": 0.5062207999999999
+        }
+      ]
+    }
+  },
+  {
+    "iterration": 11,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.3305571778559999,
+          "confidence": 0.6,
+          "range_hint": [
+            0.05470729911822164,
+            0.35470729911822163
+          ]
+        },
+        "x2": {
+          "effect": "monotone_decrease",
+          "scale": 0.33074350325759994,
+          "confidence": 0.5990979342335999,
+          "range_hint": [
+            0.010553487846440557,
+            0.31055348784644055
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "antagonism",
+          "confidence": 0.5037324799999999
+        }
+      ]
+    }
+  },
+  {
+    "iterration": 12,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.43833430671359996,
+          "confidence": 0.56,
+          "range_hint": [
+            0.0,
+            0.5
+          ]
+        },
+        "x2": {
+          "effect": "monotone_decrease",
+          "scale": 0.4384461019545599,
+          "confidence": 0.55945876054016,
+          "range_hint": [
+            0.0,
+            0.5
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "antagonism",
+          "confidence": 0.462239488
+        }
+      ]
+    }
+  },
+  {
+    "iterration": 13,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.50300058402816,
+          "confidence": 0.536,
+          "range_hint": [
+            0.0,
+            0.5
+          ]
+        },
+        "x2": {
+          "effect": "monotone_decrease",
+          "scale": 0.5030676611727359,
+          "confidence": 0.535675256324096,
+          "range_hint": [
+            0.0,
+            0.5
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "antagonism",
+          "confidence": 0.4373436928
+        }
+      ]
+    }
+  },
+  {
+    "iterration": 14,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.541800350416896,
+          "confidence": 0.5216000000000001,
+          "range_hint": [
+            0.050631956982266885,
+            0.3506319569822669
+          ]
+        },
+        "x2": {
+          "effect": "monotone_decrease",
+          "scale": 0.5418405967036415,
+          "confidence": 0.5214051537944575,
+          "range_hint": [
+            0.07256343408731725,
+            0.37256343408731724
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "none",
+          "confidence": 0.42240621568000003
+        }
+      ]
+    }
+  },
+  {
+    "iterration": 15,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.48508021025013764,
+          "confidence": 0.55296,
+          "range_hint": [
+            0.047448164600922466,
+            0.3474481646009224
+          ]
+        },
+        "x2": {
+          "effect": "monotone_decrease",
+          "scale": 0.48510435802218493,
+          "confidence": 0.5528430922766745,
+          "range_hint": [
+            0.06749907917221679,
+            0.3674990791722168
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "antagonism",
+          "confidence": 0.45344372940800004
+        }
+      ]
+    }
+  },
+  {
+    "iterration": 16,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.4510481261500826,
+          "confidence": 0.5717760000000001,
+          "range_hint": [
+            0.04458402414546314,
+            0.34458402414546313
+          ]
+        },
+        "x2": {
+          "effect": "monotone_decrease",
+          "scale": 0.451062614813311,
+          "confidence": 0.5717058553660046,
+          "range_hint": [
+            0.06348398665951813,
+            0.3634839866595181
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "none",
+          "confidence": 0.47206623764480005
+        }
+      ]
+    }
+  },
+  {
+    "iterration": 17,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.4306288756900496,
+          "confidence": 0.5830656000000001,
+          "range_hint": [
+            0.0,
+            0.5
+          ]
+        },
+        "x2": {
+          "effect": "monotone_decrease",
+          "scale": 0.4306375688879866,
+          "confidence": 0.5830235132196027,
+          "range_hint": [
+            0.0,
+            0.5
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "none",
+          "confidence": 0.48323974258688
+        }
+      ]
+    }
+  },
+  {
+    "iterration": 18,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.37837732541402974,
+          "confidence": 0.58983936,
+          "range_hint": [
+            0.04458402414546314,
+            0.34458402414546313
+          ]
+        },
+        "x2": {
+          "effect": "monotone_decrease",
+          "scale": 0.3783825413327919,
+          "confidence": 0.5898141079317616,
+          "range_hint": [
+            0.06348398665951813,
+            0.3634839866595181
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "antagonism",
+          "confidence": 0.489943845552128
+        }
+      ]
+    }
+  },
+  {
+    "iterration": 19,
+    "readout": {
+      "effects": {
+        "x1": {
+          "effect": "monotone_decrease",
+          "scale": 0.34702639524841783,
+          "confidence": 0.593903616,
+          "range_hint": [
+            0.04458402414546314,
+            0.34458402414546313
+          ]
+        },
+        "x2": {
+          "effect": "monotone_decrease",
+          "scale": 0.34702952479967514,
+          "confidence": 0.593888464759057,
+          "range_hint": [
+            0.06348398665951813,
+            0.3634839866595181
+          ]
+        }
+      },
+      "interactions": [
+        {
+          "pair": [
+            "x1",
+            "x2"
+          ],
+          "type": "antagonism",
+          "confidence": 0.4939663073312768
+        }
+      ]
+    }
+  }
+]
