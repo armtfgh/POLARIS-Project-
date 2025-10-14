@@ -5,7 +5,7 @@
       "effects": {
         "x1": {
           "effect": "monotone_decrease",
-          "scale": 0.39999999999999997,
+          "scale": 0.7,
           "confidence": 0.6,
           "range_hint": [
             0.0,
@@ -14,8 +14,8 @@
         },
         "x2": {
           "effect": "monotone_increase",
-          "scale": 0.76,
-          "confidence": 0.6599999999999999,
+          "scale": 0.74,
+          "confidence": 0.6399999999999999,
           "range_hint": [
             0.8437797198534237,
             1.0
@@ -40,20 +40,20 @@
       "effects": {
         "x1": {
           "effect": "monotone_decrease",
-          "scale": 0.36,
+          "scale": 0.62,
           "confidence": 0.6,
           "range_hint": [
             0.0,
-            0.18960393126712846
+            0.5
           ]
         },
         "x2": {
           "effect": "monotone_decrease",
-          "scale": 0.576,
-          "confidence": 0.6359999999999999,
+          "scale": 0.644,
+          "confidence": 0.6239999999999999,
           "range_hint": [
-            0.24530274460798088,
-            0.5453027446079809
+            0.0,
+            0.5
           ]
         }
       },
@@ -75,20 +75,20 @@
       "effects": {
         "x1": {
           "effect": "monotone_decrease",
-          "scale": 0.536,
+          "scale": 0.532,
           "confidence": 0.6,
           "range_hint": [
             0.0,
-            0.15
+            0.17639665697703824
           ]
         },
         "x2": {
           "effect": "monotone_decrease",
-          "scale": 0.6656,
-          "confidence": 0.6215999999999999,
+          "scale": 0.5464,
+          "confidence": 0.6143999999999998,
           "range_hint": [
-            0.015879304952825662,
-            0.3158793049528257
+            0.0,
+            0.15
           ]
         }
       },
@@ -110,20 +110,20 @@
       "effects": {
         "x1": {
           "effect": "monotone_decrease",
-          "scale": 0.6015999999999999,
+          "scale": 0.4792,
           "confidence": 0.6,
           "range_hint": [
             0.0,
-            0.15
+            0.17639665697703824
           ]
         },
         "x2": {
           "effect": "monotone_decrease",
-          "scale": 0.67936,
-          "confidence": 0.61296,
+          "scale": 0.48784,
+          "confidence": 0.6086399999999998,
           "range_hint": [
-            0.015879304952825662,
-            0.3158793049528257
+            0.0,
+            0.15
           ]
         }
       },
@@ -145,20 +145,20 @@
       "effects": {
         "x1": {
           "effect": "monotone_decrease",
-          "scale": 0.64096,
+          "scale": 0.48752,
           "confidence": 0.6,
           "range_hint": [
             0.0,
-            0.15
+            0.5
           ]
         },
         "x2": {
           "effect": "monotone_decrease",
-          "scale": 0.647616,
-          "confidence": 0.567776,
+          "scale": 0.492704,
+          "confidence": 0.6051839999999999,
           "range_hint": [
-            0.015879304952825662,
-            0.3158793049528257
+            0.0,
+            0.5
           ]
         }
       },
@@ -180,20 +180,20 @@
       "effects": {
         "x1": {
           "effect": "monotone_decrease",
-          "scale": 0.584576,
+          "scale": 0.492512,
           "confidence": 0.6,
           "range_hint": [
             0.0,
-            0.5
+            0.17639665697703824
           ]
         },
         "x2": {
           "effect": "monotone_decrease",
-          "scale": 0.5885696,
-          "confidence": 0.5806655999999999,
+          "scale": 0.49562239999999996,
+          "confidence": 0.6031103999999999,
           "range_hint": [
             0.0,
-            0.5
+            0.15
           ]
         }
       },
@@ -215,20 +215,20 @@
       "effects": {
         "x1": {
           "effect": "monotone_decrease",
-          "scale": 0.4707456,
+          "scale": 0.41550719999999997,
           "confidence": 0.6,
           "range_hint": [
             0.0,
-            0.5
+            0.17639665697703824
           ]
         },
         "x2": {
           "effect": "monotone_decrease",
-          "scale": 0.47314176,
-          "confidence": 0.5883993599999999,
+          "scale": 0.41737344,
+          "confidence": 0.6018662399999999,
           "range_hint": [
             0.0,
-            0.5
+            0.15
           ]
         }
       },
@@ -250,20 +250,20 @@
       "effects": {
         "x1": {
           "effect": "monotone_decrease",
-          "scale": 0.40244736,
+          "scale": 0.40930432,
           "confidence": 0.6,
           "range_hint": [
             0.0,
-            0.5
+            0.17639665697703824
           ]
         },
         "x2": {
           "effect": "monotone_decrease",
-          "scale": 0.403885056,
-          "confidence": 0.593039616,
+          "scale": 0.41042406400000003,
+          "confidence": 0.6011197439999999,
           "range_hint": [
             0.0,
-            0.5
+            0.15
           ]
         }
       },
@@ -285,20 +285,20 @@
       "effects": {
         "x1": {
           "effect": "monotone_decrease",
-          "scale": 0.441468416,
+          "scale": 0.445582592,
           "confidence": 0.6,
           "range_hint": [
-            0.1398588915134044,
-            0.4398588915134044
+            0.0,
+            0.17639665697703824
           ]
         },
         "x2": {
           "effect": "monotone_decrease",
-          "scale": 0.44233103360000003,
-          "confidence": 0.5958237695999999,
+          "scale": 0.4462544384,
+          "confidence": 0.6006718463999999,
           "range_hint": [
             0.0,
-            0.28661632545306004
+            0.15
           ]
         }
       },
@@ -309,7 +309,7 @@
             "x2"
           ],
           "type": "antagonism",
-          "confidence": 0.51728
+          "confidence": 0.59728
         }
       ]
     }
@@ -320,20 +320,20 @@
       "effects": {
         "x1": {
           "effect": "monotone_decrease",
-          "scale": 0.38488104959999997,
+          "scale": 0.4273495552,
           "confidence": 0.6,
           "range_hint": [
             0.0,
-            0.5
+            0.17639665697703824
           ]
         },
         "x2": {
           "effect": "monotone_decrease",
-          "scale": 0.38539862016,
-          "confidence": 0.5974942617599999,
+          "scale": 0.42775266304000004,
+          "confidence": 0.60040310784,
           "range_hint": [
             0.0,
-            0.5
+            0.15
           ]
         }
       },
@@ -344,7 +344,7 @@
             "x2"
           ],
           "type": "antagonism",
-          "confidence": 0.5103679999999999
+          "confidence": 0.558368
         }
       ]
     }
@@ -355,20 +355,20 @@
       "effects": {
         "x1": {
           "effect": "monotone_decrease",
-          "scale": 0.35092862975999994,
+          "scale": 0.41640973312,
           "confidence": 0.6,
           "range_hint": [
             0.0,
-            0.5
+            0.17639665697703824
           ]
         },
         "x2": {
           "effect": "monotone_decrease",
-          "scale": 0.351239172096,
-          "confidence": 0.5984965570559999,
+          "scale": 0.416651597824,
+          "confidence": 0.600241864704,
           "range_hint": [
             0.0,
-            0.5
+            0.15
           ]
         }
       },
@@ -379,7 +379,7 @@
             "x2"
           ],
           "type": "antagonism",
-          "confidence": 0.5062207999999999
+          "confidence": 0.6150207999999999
         }
       ]
     }
@@ -390,20 +390,20 @@
       "effects": {
         "x1": {
           "effect": "monotone_decrease",
-          "scale": 0.3305571778559999,
+          "scale": 0.369845839872,
           "confidence": 0.6,
           "range_hint": [
-            0.05470729911822164,
-            0.35470729911822163
+            0.0,
+            0.17639665697703824
           ]
         },
         "x2": {
           "effect": "monotone_decrease",
-          "scale": 0.33074350325759994,
-          "confidence": 0.5990979342335999,
+          "scale": 0.3699909586944,
+          "confidence": 0.6001451188224,
           "range_hint": [
-            0.010553487846440557,
-            0.31055348784644055
+            0.0,
+            0.15
           ]
         }
       },
@@ -414,7 +414,7 @@
             "x2"
           ],
           "type": "antagonism",
-          "confidence": 0.5037324799999999
+          "confidence": 0.5690124799999999
         }
       ]
     }
@@ -425,20 +425,20 @@
       "effects": {
         "x1": {
           "effect": "monotone_decrease",
-          "scale": 0.43833430671359996,
-          "confidence": 0.56,
+          "scale": 0.38190750392320005,
+          "confidence": 0.6,
           "range_hint": [
             0.0,
-            0.5
+            0.17639665697703824
           ]
         },
         "x2": {
           "effect": "monotone_decrease",
-          "scale": 0.4384461019545599,
-          "confidence": 0.55945876054016,
+          "scale": 0.38199457521664004,
+          "confidence": 0.60008707129344,
           "range_hint": [
             0.0,
-            0.5
+            0.15
           ]
         }
       },
@@ -449,7 +449,7 @@
             "x2"
           ],
           "type": "antagonism",
-          "confidence": 0.462239488
+          "confidence": 0.5414074879999999
         }
       ]
     }
@@ -460,20 +460,20 @@
       "effects": {
         "x1": {
           "effect": "monotone_decrease",
-          "scale": 0.50300058402816,
-          "confidence": 0.536,
+          "scale": 0.46914450235392,
+          "confidence": 0.56,
           "range_hint": [
             0.0,
-            0.5
+            0.1764710426302313
           ]
         },
         "x2": {
           "effect": "monotone_decrease",
-          "scale": 0.5030676611727359,
-          "confidence": 0.535675256324096,
+          "scale": 0.429196745129984,
+          "confidence": 0.5600522427760639,
           "range_hint": [
             0.0,
-            0.5
+            0.15
           ]
         }
       },
@@ -484,7 +484,7 @@
             "x2"
           ],
           "type": "antagonism",
-          "confidence": 0.4373436928
+          "confidence": 0.5648444927999999
         }
       ]
     }
@@ -494,21 +494,21 @@
     "readout": {
       "effects": {
         "x1": {
-          "effect": "monotone_decrease",
-          "scale": 0.541800350416896,
-          "confidence": 0.5216000000000001,
+          "effect": "monotone_increase",
+          "scale": 0.521486701412352,
+          "confidence": 0.536,
           "range_hint": [
-            0.050631956982266885,
-            0.3506319569822669
+            0.0,
+            0.1764710426302313
           ]
         },
         "x2": {
-          "effect": "monotone_decrease",
-          "scale": 0.5418405967036415,
-          "confidence": 0.5214051537944575,
+          "effect": "monotone_increase",
+          "scale": 0.4975180470779904,
+          "confidence": 0.5360313456656384,
           "range_hint": [
-            0.07256343408731725,
-            0.37256343408731724
+            0.0,
+            0.15
           ]
         }
       },
@@ -518,8 +518,8 @@
             "x1",
             "x2"
           ],
-          "type": "none",
-          "confidence": 0.42240621568000003
+          "type": "antagonism",
+          "confidence": 0.57890669568
         }
       ]
     }
@@ -530,20 +530,20 @@
       "effects": {
         "x1": {
           "effect": "monotone_decrease",
-          "scale": 0.48508021025013764,
-          "confidence": 0.55296,
+          "scale": 0.4728920208474112,
+          "confidence": 0.5616,
           "range_hint": [
-            0.047448164600922466,
-            0.3474481646009224
+            0.0,
+            0.1764710426302313
           ]
         },
         "x2": {
           "effect": "monotone_decrease",
-          "scale": 0.48510435802218493,
-          "confidence": 0.5528430922766745,
+          "scale": 0.4585108282467943,
+          "confidence": 0.5616188073993831,
           "range_hint": [
-            0.06749907917221679,
-            0.3674990791722168
+            0.0,
+            0.15
           ]
         }
       },
@@ -554,7 +554,7 @@
             "x2"
           ],
           "type": "antagonism",
-          "confidence": 0.45344372940800004
+          "confidence": 0.547344017408
         }
       ]
     }
@@ -565,20 +565,20 @@
       "effects": {
         "x1": {
           "effect": "monotone_decrease",
-          "scale": 0.4510481261500826,
-          "confidence": 0.5717760000000001,
+          "scale": 0.5237352125084467,
+          "confidence": 0.5769599999999999,
           "range_hint": [
-            0.04458402414546314,
-            0.34458402414546313
+            0.5,
+            1.0
           ]
         },
         "x2": {
           "effect": "monotone_decrease",
-          "scale": 0.451062614813311,
-          "confidence": 0.5717058553660046,
+          "scale": 0.47510649694807655,
+          "confidence": 0.5369712844396298,
           "range_hint": [
-            0.06348398665951813,
-            0.3634839866595181
+            0.5,
+            1.0
           ]
         }
       },
@@ -588,8 +588,8 @@
             "x1",
             "x2"
           ],
-          "type": "none",
-          "confidence": 0.47206623764480005
+          "type": "antagonism",
+          "confidence": 0.6084064104447999
         }
       ]
     }
@@ -600,20 +600,20 @@
       "effects": {
         "x1": {
           "effect": "monotone_decrease",
-          "scale": 0.4306288756900496,
-          "confidence": 0.5830656000000001,
+          "scale": 0.474241127505068,
+          "confidence": 0.5861759999999999,
           "range_hint": [
             0.0,
-            0.5
+            0.1764710426302313
           ]
         },
         "x2": {
           "effect": "monotone_decrease",
-          "scale": 0.4306375688879866,
-          "confidence": 0.5830235132196027,
+          "scale": 0.44506389816884595,
+          "confidence": 0.5621827706637779,
           "range_hint": [
             0.0,
-            0.5
+            0.15
           ]
         }
       },
@@ -623,8 +623,8 @@
             "x1",
             "x2"
           ],
-          "type": "none",
-          "confidence": 0.48323974258688
+          "type": "antagonism",
+          "confidence": 0.6450438462668799
         }
       ]
     }
@@ -635,20 +635,20 @@
       "effects": {
         "x1": {
           "effect": "monotone_decrease",
-          "scale": 0.37837732541402974,
-          "confidence": 0.58983936,
+          "scale": 0.5245446765030408,
+          "confidence": 0.5517056,
           "range_hint": [
-            0.04458402414546314,
-            0.34458402414546313
+            0.0,
+            0.1764710426302313
           ]
         },
         "x2": {
           "effect": "monotone_decrease",
-          "scale": 0.3783825413327919,
-          "confidence": 0.5898141079317616,
+          "scale": 0.4670383389013076,
+          "confidence": 0.5373096623982667,
           "range_hint": [
-            0.06348398665951813,
-            0.3634839866595181
+            0.0,
+            0.15
           ]
         }
       },
@@ -659,7 +659,7 @@
             "x2"
           ],
           "type": "antagonism",
-          "confidence": 0.489943845552128
+          "confidence": 0.6270263077601279
         }
       ]
     }
@@ -670,20 +670,20 @@
       "effects": {
         "x1": {
           "effect": "monotone_decrease",
-          "scale": 0.34702639524841783,
-          "confidence": 0.593903616,
+          "scale": 0.5747268059018245,
+          "confidence": 0.57102336,
           "range_hint": [
-            0.04458402414546314,
-            0.34458402414546313
+            0.0,
+            0.1764710426302313
           ]
         },
         "x2": {
           "effect": "monotone_decrease",
-          "scale": 0.34702952479967514,
-          "confidence": 0.593888464759057,
+          "scale": 0.49622300334078456,
+          "confidence": 0.56238579743896,
           "range_hint": [
-            0.06348398665951813,
-            0.3634839866595181
+            0.0,
+            0.15
           ]
         }
       },
@@ -694,7 +694,7 @@
             "x2"
           ],
           "type": "antagonism",
-          "confidence": 0.4939663073312768
+          "confidence": 0.6562157846560768
         }
       ]
     }
