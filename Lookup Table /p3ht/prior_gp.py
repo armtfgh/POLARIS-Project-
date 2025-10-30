@@ -22,37 +22,113 @@ class Prior:
     bumps: List[Dict[str, Any]]
 
     def m0_torch(self, X: Tensor) -> Tensor:
-        z1, z2 = X[..., 0], X[..., 1]
+        """Evaluate the prior mean m0(X) for normalized inputs X in [0,1]^d."""
+        if X.ndim == 1:
+            X = X.unsqueeze(0)
+        d = X.shape[-1]
         out = torch.zeros(X.shape[:-1], device=X.device, dtype=X.dtype)
 
-        def _sigmoid(z, k: float = 6.0): return 1.0 / (1.0 + torch.exp(-k * (z - 0.5)))
-        def _gauss1d(z, mu: float, s: float): return torch.exp(-0.5 * ((z - mu) / (s + 1e-12)) ** 2)
+        def _parse_dim(name: Any) -> Optional[int]:
+            if isinstance(name, int):
+                idx = name
+            elif isinstance(name, str) and name.startswith("x"):
+                try:
+                    idx = int(name[1:]) - 1
+                except ValueError:
+                    return None
+            else:
+                return None
+            return idx if 0 <= idx < d else None
 
-        for name, spec in self.effects.items():
-            eff = spec.get("effect", "flat")
-            sc = float(spec.get("scale", 0.0)); conf = float(spec.get("confidence", 0.0))
-            rh = spec.get("range_hint", None); amp = 0.6 * sc * conf
-            if amp == 0.0: continue
-            mu = 0.5
-            if isinstance(rh, (list, tuple)) and len(rh) == 2:
-                mu = 0.5 * (float(rh[0]) + float(rh[1]))
-            z = z1 if name == "x1" else z2
-            if eff == "increase": out = out + amp * _sigmoid(z)
-            elif eff == "decrease": out = out - amp * _sigmoid(z)
-            elif eff == "nonmonotone-peak": out = out + amp * _gauss1d(z, mu=mu, s=0.18)
-            elif eff == "nonmonotone-valley": out = out - amp * _gauss1d(z, mu=mu, s=0.18)
+        def _sigmoid(z: Tensor, center: float = 0.5, k: float = 6.0) -> Tensor:
+            return torch.sigmoid(k * (z - center))
 
-        for it in self.interactions:
-            pair = it.get("pair", [])
-            if pair == ["x1", "x2"] or pair == ["x2", "x1"]:
-                sign = 1.0 if it.get("type", "synergy") == "synergy" else -1.0
-                conf = float(it.get("confidence", 0.0))
-                out = out + 0.2 * sign * conf * (z1 * z2)
+        def _gauss1d(z: Tensor, mu: float, s: float) -> Tensor:
+            s = max(s, 1e-6)
+            return torch.exp(-0.5 * ((z - mu) / s) ** 2)
 
-        for b in self.bumps:
-            mu = torch.tensor(b.get("mu", [0.5, 0.5]), device=X.device, dtype=X.dtype)
-            sig = float(b.get("sigma", 0.15)); amp = float(b.get("amp", 0.1))
-            out = out + amp * torch.exp(-0.5 * torch.sum(((X - mu) / sig) ** 2, dim=-1))
+        # ----- main effects -----
+        for name, spec in (self.effects or {}).items():
+            idx = _parse_dim(name)
+            if idx is None:
+                continue
+            z = X[..., idx]
+            eff = str(spec.get("effect", "flat")).lower()
+            scale = float(spec.get("scale", 0.0))
+            conf = float(spec.get("confidence", 0.0))
+            amp = 0.6 * scale * conf
+            if amp == 0.0:
+                continue
+
+            range_hint = spec.get("range_hint")
+            center = 0.5
+            width = 0.18
+            if isinstance(range_hint, (list, tuple)) and len(range_hint) == 2:
+                lo, hi = float(range_hint[0]), float(range_hint[1])
+                center = 0.5 * (lo + hi)
+                width = max(abs(hi - lo) / 3.0, 0.05)
+
+            if eff in {"increase", "increasing"}:
+                out = out + amp * _sigmoid(z, center=center)
+            elif eff in {"decrease", "decreasing"}:
+                out = out - amp * _sigmoid(z, center=center)
+            elif eff in {"nonmonotone-peak", "peak"}:
+                out = out + amp * _gauss1d(z, mu=center, s=width)
+            elif eff in {"nonmonotone-valley", "valley"}:
+                out = out - amp * _gauss1d(z, mu=center, s=width)
+            # "flat" or unknown => no contribution
+
+        # ----- pairwise interactions -----
+        for inter in (self.interactions or []):
+            pair = inter.get("vars") or inter.get("pair") or inter.get("indices")
+            if not isinstance(pair, (list, tuple)) or len(pair) != 2:
+                continue
+            idx_a = _parse_dim(pair[0])
+            idx_b = _parse_dim(pair[1])
+            if idx_a is None or idx_b is None:
+                continue
+
+            itype = str(inter.get("type", "synergy")).lower()
+            sign = 1.0
+            if itype in {"antagonism", "tradeoff", "negative"}:
+                sign = -1.0
+            strength = max(float(inter.get("scale", inter.get("strength", 0.0))), 0.0)
+            conf = max(float(inter.get("confidence", 0.0)), 0.0)
+            if strength == 0.0 and conf == 0.0:
+                conf = 0.5
+            amp = 0.2 * (strength if strength > 0 else 1.0) * conf
+            term = (X[..., idx_a] * X[..., idx_b])
+            out = out + sign * amp * term
+
+        # ----- bumps -----
+        for bump in (self.bumps or []):
+            if not bump:
+                continue
+            mu_vals = bump.get("mu")
+            if mu_vals is None:
+                continue
+            mu = torch.tensor(list(mu_vals)[:d], device=X.device, dtype=X.dtype)
+            if mu.numel() == 0:
+                mu = torch.full((d,), 0.5, device=X.device, dtype=X.dtype)
+            elif mu.numel() < d:
+                mu = torch.cat([mu, torch.full((d - mu.numel(),), 0.5, device=X.device, dtype=X.dtype)], dim=0)
+
+            sigma_vals = bump.get("sigma", 0.15)
+            if isinstance(sigma_vals, (list, tuple)):
+                sigma = torch.tensor(list(sigma_vals)[:d], device=X.device, dtype=X.dtype)
+                if sigma.numel() == 0:
+                    sigma = torch.full((d,), 0.15, device=X.device, dtype=X.dtype)
+                elif sigma.numel() < d:
+                    sigma = torch.cat([sigma, torch.full((d - sigma.numel(),), sigma[-1], device=X.device, dtype=X.dtype)], dim=0)
+            else:
+                sigma = torch.full((d,), float(sigma_vals), device=X.device, dtype=X.dtype)
+            sigma = torch.clamp(sigma, min=1e-6)
+
+            amp = float(bump.get("amp", 0.1))
+            diff = (X - mu) / sigma
+            gauss = torch.exp(-0.5 * torch.sum(diff ** 2, dim=-1))
+            out = out + amp * gauss
+
         return out
 
 from botorch.models.model import Model

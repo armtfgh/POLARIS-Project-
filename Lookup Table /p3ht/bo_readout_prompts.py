@@ -52,13 +52,9 @@ HOW TO TRANSLATE INTO A PRIOR
 
 3) Bumps (centers in ORIGINAL feature units; sigma can be per-dimension list):
    - Primary hotspot (dense top cluster):
-     mu    = [42.5, 55.5, 0.5, 0.3, 0.2]
+     mu    = [42.5, 51.83, 2.75, 2.87, 0.32]
      sigma = [3.5, 3.0, 0.8, 0.8, 0.5]
      amp   ≈ 0.15
-   - Secondary ridge (slightly higher P3HT but still high D1):
-     mu    = [49.0, 50.0, 0.3, 0.5, 0.2]
-     sigma = [4.5, 4.0, 1.2, 1.2, 0.7]
-     amp   ≈ 0.10
 
 RESPONSE FORMAT (STRICT JSON; no prose)
 {

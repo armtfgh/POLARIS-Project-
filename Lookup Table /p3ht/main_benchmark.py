@@ -62,12 +62,11 @@ from gpytorch.mlls import ExactMarginalLogLikelihood
 import matplotlib.pyplot as plt
 
 # Optional LLM client (only used if readout_source="llm")
-try:
-    import httpx
-    from openai import OpenAI
-    _OPENAI_CLIENT = OpenAI(http_client=httpx.Client(verify=False))
-except Exception:
-    _OPENAI_CLIENT = None
+
+import httpx
+from openai import OpenAI
+_OPENAI_CLIENT = OpenAI(http_client=httpx.Client(verify=False))
+
 
 # -------------------- Device / dtype --------------------
 USE_CUDA = torch.cuda.is_available()
@@ -83,7 +82,7 @@ from readout_schema import readout_to_prior, flat_readout
 
 from bo_readout_prompts import SYS_PROMPTS_PERFECT, SYS_PROMPTS_GOOD, SYS_PROMPTS_MEDIUM, SYS_PROMPTS_RANDOM, SYS_PROMPT_MINIMAL_HUMAN
 
-SYS_PROMPTS  = SYS_PROMPT_MINIMAL_HUMAN
+SYS_PROMPTS  = SYS_PROMPTS_PERFECT
 
 
 # ====================================================================
@@ -115,7 +114,8 @@ def load_lookup_csv(path: str,
                      *,
                      device: torch.device = DEVICE,
                      dtype: torch.dtype = DTYPE,
-                     impute_features: Optional[str] = None  # None | 'median'
+                     impute_features: Optional[str] = None,  # None | 'median'
+                     aggregate_duplicates: Optional[str] = "mean"  # None | 'mean' | 'median' | 'max'
                      ) -> LookupTable:
     """Load a CSV as a finite candidate set.
 
@@ -130,6 +130,9 @@ def load_lookup_csv(path: str,
     - For features:
         * impute_features == 'median' -> fill NaN/inf with column median (computed per feature).
         * impute_features is None     -> DROP rows where any feature is NaN/inf.
+    - If `aggregate_duplicates` is not None (default "mean"), rows with identical features are
+      collapsed using the chosen statistic on the objective. This enforces the deterministic-table
+      assumption for lookup BO.
     """
     df = pd.read_csv(path)
     if df.shape[1] < 2:
@@ -160,6 +163,21 @@ def load_lookup_csv(path: str,
     if df_clean.shape[0] < 2:
         raise ValueError("After cleaning, fewer than 2 valid rows remain. Please inspect your CSV or enable median imputation for features.")
 
+    dup_mask = df_clean.duplicated(subset=feat_cols, keep=False)
+    if aggregate_duplicates:
+        agg = aggregate_duplicates.lower()
+        if agg not in {"mean", "median", "max"}:
+            raise ValueError("aggregate_duplicates must be one of {'mean','median','max', None}")
+        if dup_mask.any():
+            dup_count = int(dup_mask.sum())
+            if agg == "mean":
+                df_clean = df_clean.groupby(feat_cols, as_index=False)[obj_col].mean()
+            elif agg == "median":
+                df_clean = df_clean.groupby(feat_cols, as_index=False)[obj_col].median()
+            else:  # agg == "max"
+                df_clean = df_clean.groupby(feat_cols, as_index=False)[obj_col].max()
+            print(f"[load_lookup_csv] Aggregated {dup_count} duplicate rows using '{agg}'.")
+
     X_raw_np = df_clean[feat_cols].to_numpy(dtype=np.float64)
     y_np = df_clean[obj_col].to_numpy(dtype=np.float64)
 
@@ -170,7 +188,6 @@ def load_lookup_csv(path: str,
     maxs = X_raw.max(dim=0).values
     rng = (maxs - mins).clamp_min(1e-12)
     X = (X_raw - mins) / rng
-    
 
     return LookupTable(
         X_raw=X_raw, y=y, X=X, mins=mins, maxs=maxs,
@@ -192,7 +209,7 @@ def remaining_indices(n_total: int, seen: set[int]) -> List[int]:
     return [i for i in range(n_total) if i not in seen]
 
 
-def as_records_row(idx: int, x_norm: Tensor, y: float, best: float, method: str, feature_names: List[str]) -> Dict[str, Any]:
+def as_records_row(idx: int, x_feat: Tensor, y: float, best: float, method: str, feature_names: List[str]) -> Dict[str, Any]:
     rec = {
         "iter": None,  # filled by caller
         "idx": int(idx),
@@ -200,8 +217,8 @@ def as_records_row(idx: int, x_norm: Tensor, y: float, best: float, method: str,
         "best_so_far": float(best),
         "method": method,
     }
-    for j in range(x_norm.numel()):
-        rec[f"x{j+1}"] = float(x_norm[j].item())
+    for j in range(x_feat.numel()):
+        rec[f"x{j+1}"] = float(x_feat[j].item())
     return rec
 
 
@@ -242,11 +259,11 @@ def _sobol_init_lookup(lookup, n_init: int, seed: int) -> List[int]:
     if offset:
         engine.fast_forward(offset)
 
-    props_unit = engine.draw(n_init).to(device=lookup.X.device, dtype=lookup.X.dtype)  # (n_init,d)
+    props_unit = engine.draw(n_init).to(device=lookup.X_raw.device, dtype=lookup.X_raw.dtype)  # (n_init,d)
 
     # Map unit-box proposals to RAW feature scale: x_raw = mins + u * (maxs - mins)
-    mins = lookup.mins.to(device=lookup.X.device, dtype=lookup.X.dtype)
-    rng = (lookup.maxs - lookup.mins).to(device=lookup.X.device, dtype=lookup.X.dtype).clamp_min(1e-12)
+    mins = lookup.mins.to(device=lookup.X_raw.device, dtype=lookup.X_raw.dtype)
+    rng = (lookup.maxs - lookup.mins).to(device=lookup.X_raw.device, dtype=lookup.X_raw.dtype).clamp_min(1e-12)
     props_raw = mins + props_unit * rng
 
     remaining = set(range(N))
@@ -254,8 +271,8 @@ def _sobol_init_lookup(lookup, n_init: int, seed: int) -> List[int]:
     for k in range(n_init):
         x_prop = props_raw[k:k+1]  # (1,d) RAW
         # compute distances ONLY over remaining
-        rem_idx = torch.tensor(sorted(list(remaining)), device=lookup.X.device, dtype=torch.long)
-        cand = lookup.X.index_select(0, rem_idx)  # RAW
+        rem_idx = torch.tensor(sorted(list(remaining)), device=lookup.X_raw.device, dtype=torch.long)
+        cand = lookup.X_raw.index_select(0, rem_idx)
         j = int(torch.argmin(torch.linalg.norm(cand - x_prop, dim=1)).item())
         idx = int(rem_idx[j].item())
         chosen.append(idx)
@@ -311,7 +328,7 @@ def _build_initial_from_indices(lookup, idxs: List[int], method_tag: str) -> tup
     for i, idx in enumerate(idxs):
         y_i = float(lookup.y[idx].item())
         best_running = max(best_running, y_i)
-        row = as_records_row(idx, lookup.X[idx], y_i, best_running, method=method_tag, feature_names=lookup.feature_names)
+        row = as_records_row(idx, lookup.X_raw[idx], y_i, best_running, method=method_tag, feature_names=lookup.feature_names)
         row["iter"] = i - len(idxs)
         rec.append(row)
     return seen, X_obs, Y_obs, rec
@@ -376,15 +393,14 @@ def sanitize_readout_dim(readout: Dict[str, Any], d: int) -> Dict[str, Any]:
     bumps_in = ro.get("bumps", []) or []
     bumps_out = []
     for b in bumps_in:
-        try:
-            mu = _coerce_list_len(b.get("mu", [0.5] * d), d, fill=0.5)
-            sigma = b.get("sigma", 0.15)
-            if isinstance(sigma, (list, tuple)):
-                sigma = _coerce_list_len(sigma, d, fill=(sigma[-1] if len(sigma) else 0.15))
-            amp = float(b.get("amp", 0.1))
-            bumps_out.append({"mu": mu, "sigma": sigma, "amp": amp})
-        except Exception:
-            continue
+        
+        mu = _coerce_list_len(b.get("mu", [0.5] * d), d, fill=0.5)
+        sigma = b.get("sigma", 0.15)
+        if isinstance(sigma, (list, tuple)):
+            sigma = _coerce_list_len(sigma, d, fill=(sigma[-1] if len(sigma) else 0.15))
+        amp = float(b.get("amp", 0.1))
+        bumps_out.append({"mu": mu, "sigma": sigma, "amp": amp})
+
     ro["bumps"] = bumps_out
 
     # effects: keep only x1..xd
@@ -392,12 +408,11 @@ def sanitize_readout_dim(readout: Dict[str, Any], d: int) -> Dict[str, Any]:
     eff_out = {}
     for k, v in eff_in.items():
         if isinstance(k, str) and k.startswith("x"):
-            try:
-                j = int(k[1:])
-                if 1 <= j <= d:
-                    eff_out[k] = v
-            except Exception:
-                pass
+            
+            j = int(k[1:])
+            if 1 <= j <= d:
+                eff_out[k] = v
+
     ro["effects"] = eff_out
 
     # interactions: conservative filter
@@ -413,6 +428,59 @@ def sanitize_readout_dim(readout: Dict[str, Any], d: int) -> Dict[str, Any]:
         if keep:
             inter_out.append(it)
     ro["interactions"] = inter_out
+    return ro
+
+
+def _normalize_readout_to_unit_box(readout: Dict[str, Any], mins: Tensor, maxs: Tensor) -> Dict[str, Any]:
+    """
+    Take raw-scale readout JSON (mu/sigma in original units) and convert to unit-box coordinates.
+    Sigma entries may be either scalar or list; scalars are scaled by the average range.
+    """
+    if readout is None:
+        return {"effects": {}, "interactions": [], "bumps": []}
+    rng = (maxs - mins).clamp_min(1e-12)
+    mins = mins.to(device=DEVICE, dtype=DTYPE)
+    rng = rng.to(device=DEVICE, dtype=DTYPE)
+    ro = {**readout}
+
+    effects_out = {}
+    for name, spec in (ro.get("effects", {}) or {}).items():
+        spec_out = dict(spec)
+        rh = spec_out.get("range_hint")
+        if isinstance(name, str) and name.startswith("x") and isinstance(rh, (list, tuple)) and len(rh) == 2:
+            
+            j = int(name[1:]) - 1
+            low = float(rh[0]); high = float(rh[1])
+            low_n = float(((low - mins[j]) / rng[j]).clamp(1e-6, 1 - 1e-6).item())
+            high_n = float(((high - mins[j]) / rng[j]).clamp(1e-6, 1 - 1e-6).item())
+            spec_out["range_hint"] = [low_n, high_n]
+
+        effects_out[name] = spec_out
+    ro["effects"] = effects_out
+
+    bumps = []
+    for b in ro.get("bumps", []) or []:
+        mu = b.get("mu", None)
+        sigma = b.get("sigma", 0.15)
+        amp = b.get("amp", 0.1)
+        if mu is None:
+            continue
+        mu_vec = torch.tensor(mu, dtype=DTYPE, device=mins.device)
+        mu_norm = ((mu_vec - mins) / rng).clamp(1e-6, 1 - 1e-6)
+        if isinstance(sigma, (list, tuple)):
+            sigma_vec = torch.tensor(list(sigma), dtype=DTYPE, device=mins.device)
+            sigma_norm = (sigma_vec / rng).clamp_min(1e-6)
+            sigma_out = [float(v) for v in sigma_norm.cpu().tolist()]
+        else:
+            sigma_scalar = float(sigma)
+            scale = torch.mean((torch.ones_like(rng) * sigma_scalar) / rng).clamp_min(1e-6)
+            sigma_out = float(scale.item())
+        bumps.append({
+            "mu": [float(v) for v in mu_norm.cpu().tolist()],
+            "sigma": sigma_out,
+            "amp": float(amp),
+        })
+    ro["bumps"] = bumps
     return ro
 
 # -------------------- Prompt + LLM readout -------------------------
@@ -433,10 +501,9 @@ def llm_generate_readout(history_df: Optional[pd.DataFrame], gp_ctx: SingleTaskG
         model=model, temperature=temperature, response_format={"type": "json_object"}, messages=messages,
     )
     
-    try:
-        return json.loads(resp.choices[0].message.content)
-    except Exception:
-        return {"effects": {}, "interactions": [], "bumps": []}
+
+    return json.loads(resp.choices[0].message.content)
+
 
 # ====================================================================
 #                        CORE METHODS ON LOOKUP TABLE (single run)
@@ -460,7 +527,7 @@ def _run_random_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
     for i, idx in enumerate(idxs):
         y_i = float(lookup.y[idx].item())
         best_running = max(best_running, y_i)
-        row = as_records_row(idx, lookup.X[idx], y_i, best_running, method="random", feature_names=lookup.feature_names)
+        row = as_records_row(idx, lookup.X_raw[idx], y_i, best_running, method="random", feature_names=lookup.feature_names)
         row["iter"] = i - len(idxs)
         rec.append(row)
 
@@ -474,7 +541,7 @@ def _run_random_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
 
         y = float(lookup.y[pick].item())
         best = max(best, y)
-        row = as_records_row(pick, lookup.X[pick], y, best, method="random", feature_names=lookup.feature_names)
+        row = as_records_row(pick, lookup.X_raw[pick], y, best, method="random", feature_names=lookup.feature_names)
         row["iter"] = t
         rec.append(row)
 
@@ -493,25 +560,23 @@ def _run_baseline_ei_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: 
     # Build starting state & records
     seen, X_obs, Y_obs, rec = _build_initial_from_indices(lookup, idxs, method_tag="baseline_ei")
 
-    # --- BO loop unchanged below ---
+    # --- BO loop ---
     best_running = float(max([r["y"] for r in rec]) if rec else -float("inf"))
     for t in range(n_iter):
-
-        
         Y_obs2 = Y_obs.unsqueeze(-1)
-        gp = SingleTaskGP(X_obs, Y_obs2,outcome_transform=Standardize(m=1) )
+        gp = SingleTaskGP(X_obs, Y_obs2)
         mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
         fit_gpytorch_mll(mll)
 
         rem = remaining_indices(N, seen)
-        if not rem: break
+        if not rem:
+            break
         X_pool = lookup.X[rem]
 
-        best_f = float(Y_obs.max().item())  # ← FIX (not posterior mean!)
-
-
-        EI = ExpectedImprovement(model=gp, best_f=best_f, maximize=True)
         with torch.no_grad():
+            train_post = gp.posterior(X_obs.unsqueeze(1))
+            best_f = float(train_post.mean.max().item())
+            EI = ExpectedImprovement(model=gp, best_f=best_f, maximize=True)
             ei_vals = EI(X_pool.unsqueeze(1)).reshape(-1)
             idx_local = int(torch.argmax(ei_vals))
             pick = rem[idx_local]
@@ -522,7 +587,8 @@ def _run_baseline_ei_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: 
         X_obs = torch.cat([X_obs, lookup.X[pick].unsqueeze(0)], dim=0)
         Y_obs = torch.cat([Y_obs, torch.tensor([y], dtype=DTYPE, device=DEVICE)], dim=0)
 
-        row = as_records_row(pick, lookup.X[pick], y, best_running, method="baseline_ei", feature_names=lookup.feature_names)
+        row = as_records_row(pick, lookup.X_raw[pick], y, best_running,
+                             method="baseline_ei", feature_names=lookup.feature_names)
         row["iter"] = t
         rec.append(row)
 
@@ -534,7 +600,8 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
                               pool_base: Optional[int] = None,
                               debug_llm: bool = False,
                               model: str = "gpt-4o-mini",
-                              log_json_path: Optional[str] = None) -> pd.DataFrame:
+                              log_json_path: Optional[str] = None,
+                              diagnose_prior: bool = False) -> pd.DataFrame:
     N = lookup.n
 
     # --- choose initial indices based on init_method ---
@@ -543,7 +610,9 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
     # Build starting state & records
     seen, X_obs, Y_obs, rec = _build_initial_from_indices(lookup, idxs, method_tag="hybrid")
 
-    # --- prior selection as before ---
+    prior_debug: Optional[List[Dict[str, Any]]] = [] if diagnose_prior else None
+
+    # --- initial prior selection ---
     if readout_source == "llm":
         Y_obs2 = Y_obs.unsqueeze(-1)
         gp_ctx = SingleTaskGP(X_obs, Y_obs2)
@@ -552,8 +621,9 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
         rem0 = remaining_indices(N, seen)
         X_pool0 = lookup.X[rem0] if rem0 else torch.empty((0, lookup.d), device=DEVICE, dtype=DTYPE)
         ro0_raw = llm_generate_readout(pd.DataFrame(rec), gp_ctx, X_obs, Y_obs2, X_pool0, model=model)
-        ro0_raw = force_scalar_sigma(sanitize_readout_dim(ro0_raw, lookup.d))
-        ro0 = sanitize_readout_dim(ro0_raw, lookup.d)
+        ro0_sane = sanitize_readout_dim(ro0_raw, lookup.d)
+        ro0_sane = force_scalar_sigma(ro0_sane)
+        ro0 = _normalize_readout_to_unit_box(ro0_sane, lookup.mins, lookup.maxs)
     else:
         ro0 = flat_readout()
     prior = readout_to_prior(ro0)
@@ -567,16 +637,28 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
 
     for t in range(n_iter):
         Y_obs2 = Y_obs.unsqueeze(-1)
+
+        # if readout_source == "llm":
+        #     gp_ctx = SingleTaskGP(X_obs, Y_obs2)
+        #     mll_ctx = ExactMarginalLogLikelihood(gp_ctx.likelihood, gp_ctx)
+        #     fit_gpytorch_mll(mll_ctx)
+        #     rem_prompt = remaining_indices(N, seen)
+        #     X_pool_prompt = lookup.X[rem_prompt] if rem_prompt else torch.empty((0, lookup.d), device=DEVICE, dtype=DTYPE)
+        #     ro_t_raw = llm_generate_readout(pd.DataFrame(rec), gp_ctx, X_obs, Y_obs2, X_pool_prompt, model=model)
+        #     ro_t_sane = sanitize_readout_dim(ro_t_raw, lookup.d)
+        #     ro_t_sane = force_scalar_sigma(ro_t_sane)
+        #     ro_t = _normalize_readout_to_unit_box(ro_t_sane, lookup.mins, lookup.maxs)
+        #     prior = readout_to_prior(ro_t)
+        #     if log_json_path is not None:
+        #         status_log.append({"iter": t, "readout": ro_t})
+
         gp_resid, alpha = fit_residual_gp(X_obs, Y_obs2, prior)
         rho = alignment_on_obs(X_obs, Y_obs2, prior)
         model_total = GPWithPriorMean(gp_resid, prior, m0_scale=float(alpha * m0_w))
-        with torch.no_grad():
-            train_post = model_total.posterior(X_obs.unsqueeze(1))
-            best_f = float(train_post.mean.max().item())
-        EI = ExpectedImprovement(model=model_total, best_f=best_f, maximize=True)
 
         rem = remaining_indices(N, seen)
-        if not rem: break
+        if not rem:
+            break
         if pool_base is not None and len(rem) > pool_base:
             g = torch.Generator(device='cpu'); g.manual_seed(int(seed) + 777 + t)
             idx_sub = torch.tensor(rem)[torch.randperm(len(rem), generator=g)[:pool_base]].tolist()
@@ -585,21 +667,52 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
             rem_eval = rem
         X_pool = lookup.X[rem_eval]
 
-        if readout_source == "llm":
-            gp_ctx = SingleTaskGP(X_obs, Y_obs2)
-            mll = ExactMarginalLogLikelihood(gp_ctx.likelihood, gp_ctx)
-            fit_gpytorch_mll(mll)
-            ro_t_raw = llm_generate_readout(pd.DataFrame(rec), gp_ctx, X_obs, Y_obs2, X_pool, model=model)
-            ro_t_raw = force_scalar_sigma(sanitize_readout_dim(ro_t_raw, lookup.d))
-            ro_t = sanitize_readout_dim(ro_t_raw, lookup.d)
-            prior = readout_to_prior(ro_t)
-            if log_json_path is not None:
-                status_log.append({"iter": t, "readout": ro_t})
-
         with torch.no_grad():
+            train_post = model_total.posterior(X_obs.unsqueeze(1))
+            best_f = float(train_post.mean.max().item())
+            EI = ExpectedImprovement(model=model_total, best_f=best_f, maximize=True)
             ei_vals = EI(X_pool.unsqueeze(1)).reshape(-1)
             idx_local = int(torch.argmax(ei_vals))
             pick = rem_eval[idx_local]
+
+        if diagnose_prior:
+            gp_plain = SingleTaskGP(X_obs, Y_obs2)
+            mll_plain = ExactMarginalLogLikelihood(gp_plain.likelihood, gp_plain)
+            fit_gpytorch_mll(mll_plain)
+            with torch.no_grad():
+                post_plain = gp_plain.posterior(X_obs.unsqueeze(1))
+                best_plain = float(post_plain.mean.max().item())
+                EI_plain = ExpectedImprovement(model=gp_plain, best_f=best_plain, maximize=True)
+                ei_plain_vals = EI_plain(X_pool.unsqueeze(1)).reshape(-1)
+                idx_plain_local = int(torch.argmax(ei_plain_vals))
+                pick_plain = rem_eval[idx_plain_local]
+                prior_vals = prior.m0_torch(X_pool).reshape(-1)
+                idx_prior_local = int(torch.argmax(prior_vals))
+                pick_prior = rem_eval[idx_prior_local]
+
+            diag_entry = {
+                "iter": t,
+                "seed": seed,
+                "hybrid_idx": int(pick),
+                "baseline_idx": int(pick_plain),
+                "prior_idx": int(pick_prior),
+                "hybrid_equals_baseline": bool(pick == pick_plain),
+                "alpha": float(alpha),
+                "rho": float(rho),
+                "m0_scale": float(alpha * m0_w),
+                "hybrid_ei": float(ei_vals[idx_local].item()),
+                "baseline_ei": float(ei_plain_vals[idx_plain_local].item()),
+                "prior_mean_hybrid": float(prior_vals[idx_local].item()),
+                "prior_mean_baseline": float(prior_vals[idx_plain_local].item()),
+                "prior_mean_top": float(prior_vals[idx_prior_local].item()),
+                "hybrid_raw": [float(v) for v in lookup.X_raw[pick].detach().cpu().tolist()],
+                "baseline_raw": [float(v) for v in lookup.X_raw[pick_plain].detach().cpu().tolist()],
+                "prior_raw": [float(v) for v in lookup.X_raw[pick_prior].detach().cpu().tolist()],
+            }
+            if prior_debug is not None:
+                prior_debug.append(diag_entry)
+            if debug_llm:
+                print(f"[prior-diagnostics] seed={seed} iter={t} hybrid_idx={pick} baseline_idx={pick_plain} same={pick == pick_plain}")
 
         y = float(lookup.y[pick].item())
         best_running = max(best_running, y)
@@ -607,7 +720,8 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
         X_obs = torch.cat([X_obs, lookup.X[pick].unsqueeze(0)], dim=0)
         Y_obs = torch.cat([Y_obs, torch.tensor([y], dtype=DTYPE, device=DEVICE)], dim=0)
 
-        row = as_records_row(pick, lookup.X[pick], y, best_running, method="hybrid", feature_names=lookup.feature_names)
+        row = as_records_row(pick, lookup.X_raw[pick], y, best_running,
+                             method="hybrid", feature_names=lookup.feature_names)
         row["iter"] = t
         rec.append(row)
 
@@ -618,7 +732,10 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
         with open(log_json_path, 'w') as f:
             json.dump(status_log, f, indent=2)
 
-    return pd.DataFrame(rec)
+    df = pd.DataFrame(rec)
+    # if diagnose_prior and prior_debug is not None:
+    # df.attrs["prior_debug"] = prior_debug
+    return df
 
 # ====================================================================
 #                        PUBLIC METHODS (with repeats)
@@ -665,30 +782,42 @@ def run_baseline_ei_lookup(lookup: LookupTable, *, n_init: int, n_iter: int, see
 def run_hybrid_lookup(lookup: LookupTable, *, n_init: int, n_iter: int, seed: int = 0,
                       repeats: int = 1, init_method: str = "random",
                       readout_source: str = "flat", pool_base: Optional[int] = None,
-                      debug_llm: bool = False, model: str = "gpt-4.1",
-                      log_json_path: Optional[str] = None) -> pd.DataFrame:
+                      debug_llm: bool = False, model: str = "gpt-4o-mini",
+                      log_json_path: Optional[str] = None,
+                      diagnose_prior: bool = False) -> pd.DataFrame:
     if repeats <= 1:
         df = _run_hybrid_lookup_single(lookup, n_init=n_init, n_iter=n_iter, seed=seed,
                                        init_method=init_method,
                                        readout_source=readout_source, pool_base=pool_base,
-                                       debug_llm=debug_llm, model=model, log_json_path=log_json_path)
+                                       debug_llm=debug_llm, model=model, log_json_path=log_json_path,
+                                       diagnose_prior=diagnose_prior)
         df["seed"] = seed
+        if diagnose_prior and "prior_debug" in df.attrs:
+            df.attrs.setdefault("prior_debug_runs", []).append({"seed": seed, "prior_debug": df.attrs["prior_debug"]})
         return df
     dfs = []
+    debug_runs: List[Dict[str, Any]] = [] if diagnose_prior else []
     for r in range(repeats):
         s = seed + r
         dfr = _run_hybrid_lookup_single(lookup, n_init=n_init, n_iter=n_iter, seed=s,
                                         init_method=init_method,
                                         readout_source=readout_source, pool_base=pool_base,
-                                        debug_llm=debug_llm, model=model, log_json_path=None)
+                                        debug_llm=debug_llm, model=model, log_json_path=None,
+                                        diagnose_prior=diagnose_prior)
         dfr["seed"] = s
+        if diagnose_prior and "prior_debug" in dfr.attrs:
+            debug_runs.append({"seed": s, "prior_debug": dfr.attrs["prior_debug"]})
+            print(debug_runs)
         dfs.append(dfr)
-    return pd.concat(dfs, ignore_index=True)
+    out = pd.concat(dfs, ignore_index=True)
+    if diagnose_prior and debug_runs:
+        out.attrs["prior_debug_runs"] = debug_runs
+    return out
 
 
 def compare_methods_from_csv(lookup: LookupTable, n_init: int = 6, n_iter: int = 25, seed: int = 0,
                              repeats: int = 1, include_hybrid: bool = True, readout_source: str = "flat",
-                             init_method: str = "random") -> pd.DataFrame:
+                             init_method: str = "random", diagnose_prior: bool = False) -> pd.DataFrame:
     dfs: List[pd.DataFrame] = []
     rand = run_random_lookup(lookup, n_init=n_init, n_iter=n_iter, seed=seed,
                              repeats=repeats, init_method=init_method)
@@ -697,8 +826,11 @@ def compare_methods_from_csv(lookup: LookupTable, n_init: int = 6, n_iter: int =
     dfs.extend([rand, base])
     if include_hybrid:
         hyb = run_hybrid_lookup(lookup, n_init=n_init, n_iter=n_iter, seed=seed, repeats=repeats,
-                                init_method=init_method, readout_source=readout_source)
+                                init_method=init_method, readout_source=readout_source,
+                                diagnose_prior=diagnose_prior)
+
         dfs.append(hyb)
+        
     return pd.concat(dfs, ignore_index=True)
 
 # ====================================================================
@@ -763,7 +895,8 @@ def plot_runs_mean_lookup(hist_df: pd.DataFrame, *, methods: Optional[List[str]]
 # %%
 lt = load_lookup_csv("P3HT_dataset.csv", impute_features="median")
 # LLM-SI init (deterministic GOAL_A..E scouting before BO)
-hist = compare_methods_from_csv(lt, n_init=5, n_iter=10, seed=122, repeats=10,
-                                init_method="sobol", include_hybrid=True, readout_source="llm")
+hist = compare_methods_from_csv(lt, n_init=3, n_iter=10, seed=5467, repeats=20,
+                                init_method="sobol", include_hybrid=True, readout_source="llm",diagnose_prior=True)
 plot_runs_mean_lookup(hist)
 
+ # %%
