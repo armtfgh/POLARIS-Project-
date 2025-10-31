@@ -63,9 +63,12 @@ import matplotlib.pyplot as plt
 
 # Optional LLM client (only used if readout_source="llm")
 
-import httpx
-from openai import OpenAI
-_OPENAI_CLIENT = OpenAI(http_client=httpx.Client(verify=False))
+try:
+    import httpx
+    from openai import OpenAI
+    _OPENAI_CLIENT = OpenAI(http_client=httpx.Client(verify=False))
+except Exception:
+    _OPENAI_CLIENT = None
 
 
 # -------------------- Device / dtype --------------------
@@ -79,12 +82,26 @@ from prior_gp import alignment_on_obs, fit_residual_gp, GPWithPriorMean, Prior
 from readout_schema import readout_to_prior, flat_readout
 
 # (Prompts are optional; only used if readout_source="llm")
+#%%
+from bo_readout_prompts import (
+    SYS_PROMPTS_PERFECT,
+    SYS_PROMPTS_GOOD,
+    SYS_PROMPTS_MEDIUM,
+    SYS_PROMPTS_RANDOM,
+    SYS_PROMPTS_BAD,
+    SYS_PROMPT_MINIMAL_HUMAN,
+)
 
-from bo_readout_prompts import SYS_PROMPTS_PERFECT, SYS_PROMPTS_GOOD, SYS_PROMPTS_MEDIUM, SYS_PROMPTS_RANDOM, SYS_PROMPT_MINIMAL_HUMAN
+PROMPT_LIBRARY = {
+    "perfect": SYS_PROMPTS_PERFECT,
+    "good": SYS_PROMPTS_GOOD,
+    "medium": SYS_PROMPTS_MEDIUM,
+    "minimal": SYS_PROMPT_MINIMAL_HUMAN,
+    "random": SYS_PROMPTS_RANDOM,
+    "bad": SYS_PROMPTS_BAD,
+}
 
-SYS_PROMPTS  = SYS_PROMPTS_PERFECT
-
-
+#%%
 # ====================================================================
 #                             DATASET LOADER
 # ====================================================================
@@ -486,7 +503,7 @@ def _normalize_readout_to_unit_box(readout: Dict[str, Any], mins: Tensor, maxs: 
 # -------------------- Prompt + LLM readout -------------------------
 
 def llm_generate_readout(history_df: Optional[pd.DataFrame], gp_ctx: SingleTaskGP, X_obs: Tensor, Y_obs: Tensor,
-                          X_pool: Tensor, sys_prompt: str = SYS_PROMPTS,
+                          X_pool: Tensor, sys_prompt: str,
                           temperature: float = 0.2, model: str = "gpt-4o-mini") -> Dict[str, Any]:
     if _OPENAI_CLIENT is None:
         return {"effects": {}, "interactions": [], "bumps": []}  # fallback: flat
@@ -601,26 +618,33 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
                               debug_llm: bool = False,
                               model: str = "gpt-4o-mini",
                               log_json_path: Optional[str] = None,
-                              diagnose_prior: bool = False) -> pd.DataFrame:
+                              diagnose_prior: bool = False,
+                              prompt_profile: str = "perfect",
+                              method_tag: Optional[str] = None) -> pd.DataFrame:
     N = lookup.n
 
     # --- choose initial indices based on init_method ---
     idxs = _select_initial_indices_lookup(lookup, n_init, seed, init_method)
 
     # Build starting state & records
-    seen, X_obs, Y_obs, rec = _build_initial_from_indices(lookup, idxs, method_tag="hybrid")
+    method_label = method_tag or ("hybrid_llm" if readout_source == "llm" else "hybrid_flat")
+    if readout_source == "llm":
+        method_label = method_tag or f"hybrid_{prompt_profile}"
+
+    seen, X_obs, Y_obs, rec = _build_initial_from_indices(lookup, idxs, method_tag=method_label)
 
     prior_debug: Optional[List[Dict[str, Any]]] = [] if diagnose_prior else None
 
     # --- initial prior selection ---
     if readout_source == "llm":
+        prompt_text = PROMPT_LIBRARY.get(prompt_profile, SYS_PROMPTS_PERFECT)
         Y_obs2 = Y_obs.unsqueeze(-1)
         gp_ctx = SingleTaskGP(X_obs, Y_obs2)
         mll = ExactMarginalLogLikelihood(gp_ctx.likelihood, gp_ctx)
         fit_gpytorch_mll(mll)
         rem0 = remaining_indices(N, seen)
         X_pool0 = lookup.X[rem0] if rem0 else torch.empty((0, lookup.d), device=DEVICE, dtype=DTYPE)
-        ro0_raw = llm_generate_readout(pd.DataFrame(rec), gp_ctx, X_obs, Y_obs2, X_pool0, model=model)
+        ro0_raw = llm_generate_readout(pd.DataFrame(rec), gp_ctx, X_obs, Y_obs2, X_pool0, sys_prompt=prompt_text, model=model)
         ro0_sane = sanitize_readout_dim(ro0_raw, lookup.d)
         ro0_sane = force_scalar_sigma(ro0_sane)
         ro0 = _normalize_readout_to_unit_box(ro0_sane, lookup.mins, lookup.maxs)
@@ -644,7 +668,8 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
         #     fit_gpytorch_mll(mll_ctx)
         #     rem_prompt = remaining_indices(N, seen)
         #     X_pool_prompt = lookup.X[rem_prompt] if rem_prompt else torch.empty((0, lookup.d), device=DEVICE, dtype=DTYPE)
-        #     ro_t_raw = llm_generate_readout(pd.DataFrame(rec), gp_ctx, X_obs, Y_obs2, X_pool_prompt, model=model)
+        #     ro_t_raw = llm_generate_readout(pd.DataFrame(rec), gp_ctx, X_obs, Y_obs2, X_pool_prompt,
+        #                                     sys_prompt=prompt_text, model=model)
         #     ro_t_sane = sanitize_readout_dim(ro_t_raw, lookup.d)
         #     ro_t_sane = force_scalar_sigma(ro_t_sane)
         #     ro_t = _normalize_readout_to_unit_box(ro_t_sane, lookup.mins, lookup.maxs)
@@ -721,7 +746,7 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
         Y_obs = torch.cat([Y_obs, torch.tensor([y], dtype=DTYPE, device=DEVICE)], dim=0)
 
         row = as_records_row(pick, lookup.X_raw[pick], y, best_running,
-                             method="hybrid", feature_names=lookup.feature_names)
+                             method=method_label, feature_names=lookup.feature_names)
         row["iter"] = t
         rec.append(row)
 
@@ -733,8 +758,8 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
             json.dump(status_log, f, indent=2)
 
     df = pd.DataFrame(rec)
-    # if diagnose_prior and prior_debug is not None:
-    # df.attrs["prior_debug"] = prior_debug
+    if diagnose_prior and prior_debug is not None:
+        df.attrs["prior_debug"] = prior_debug
     return df
 
 # ====================================================================
@@ -784,13 +809,17 @@ def run_hybrid_lookup(lookup: LookupTable, *, n_init: int, n_iter: int, seed: in
                       readout_source: str = "flat", pool_base: Optional[int] = None,
                       debug_llm: bool = False, model: str = "gpt-4o-mini",
                       log_json_path: Optional[str] = None,
-                      diagnose_prior: bool = False) -> pd.DataFrame:
+                      diagnose_prior: bool = False,
+                      prompt_profile: str = "perfect",
+                      method_tag: Optional[str] = None) -> pd.DataFrame:
     if repeats <= 1:
         df = _run_hybrid_lookup_single(lookup, n_init=n_init, n_iter=n_iter, seed=seed,
                                        init_method=init_method,
                                        readout_source=readout_source, pool_base=pool_base,
                                        debug_llm=debug_llm, model=model, log_json_path=log_json_path,
-                                       diagnose_prior=diagnose_prior)
+                                       diagnose_prior=diagnose_prior,
+                                       prompt_profile=prompt_profile,
+                                       method_tag=method_tag)
         df["seed"] = seed
         if diagnose_prior and "prior_debug" in df.attrs:
             df.attrs.setdefault("prior_debug_runs", []).append({"seed": seed, "prior_debug": df.attrs["prior_debug"]})
@@ -803,11 +832,12 @@ def run_hybrid_lookup(lookup: LookupTable, *, n_init: int, n_iter: int, seed: in
                                         init_method=init_method,
                                         readout_source=readout_source, pool_base=pool_base,
                                         debug_llm=debug_llm, model=model, log_json_path=None,
-                                        diagnose_prior=diagnose_prior)
+                                        diagnose_prior=diagnose_prior,
+                                        prompt_profile=prompt_profile,
+                                        method_tag=method_tag)
         dfr["seed"] = s
         if diagnose_prior and "prior_debug" in dfr.attrs:
             debug_runs.append({"seed": s, "prior_debug": dfr.attrs["prior_debug"]})
-            print(debug_runs)
         dfs.append(dfr)
     out = pd.concat(dfs, ignore_index=True)
     if diagnose_prior and debug_runs:
@@ -824,14 +854,37 @@ def compare_methods_from_csv(lookup: LookupTable, n_init: int = 6, n_iter: int =
     base = run_baseline_ei_lookup(lookup, n_init=n_init, n_iter=n_iter, seed=seed,
                                   repeats=repeats, init_method=init_method)
     dfs.extend([rand, base])
+    hybrid_debug: List[Dict[str, Any]] = []
     if include_hybrid:
-        hyb = run_hybrid_lookup(lookup, n_init=n_init, n_iter=n_iter, seed=seed, repeats=repeats,
-                                init_method=init_method, readout_source=readout_source,
-                                diagnose_prior=diagnose_prior)
+        if readout_source == "llm":
+            prompt_profiles = ["perfect", "medium", "bad"]
+            for profile in prompt_profiles:
+                method_label = f"hybrid_{profile}"
+                hyb = run_hybrid_lookup(lookup, n_init=n_init, n_iter=n_iter, seed=seed, repeats=repeats,
+                                        init_method=init_method, readout_source="llm",
+                                        diagnose_prior=diagnose_prior, prompt_profile=profile,
+                                        method_tag=method_label)
+                if diagnose_prior:
+                    payload = hyb.attrs.get("prior_debug_runs") or hyb.attrs.get("prior_debug")
+                    if payload:
+                        hybrid_debug.append({"prompt": profile, "debug": payload})
+                dfs.append(hyb)
+        else:
+            method_label = "hybrid_flat"
+            hyb = run_hybrid_lookup(lookup, n_init=n_init, n_iter=n_iter, seed=seed, repeats=repeats,
+                                    init_method=init_method, readout_source=readout_source,
+                                    diagnose_prior=diagnose_prior, prompt_profile="perfect",
+                                    method_tag=method_label)
+            if diagnose_prior:
+                payload = hyb.attrs.get("prior_debug_runs") or hyb.attrs.get("prior_debug")
+                if payload:
+                    hybrid_debug.append({"prompt": method_label, "debug": payload})
+            dfs.append(hyb)
 
-        dfs.append(hyb)
-        
-    return pd.concat(dfs, ignore_index=True)
+    out = pd.concat(dfs, ignore_index=True)
+    if hybrid_debug:
+        out.attrs["prior_debug_runs"] = hybrid_debug
+    return out
 
 # ====================================================================
 #                          COMPARISON WRAPPER
@@ -895,7 +948,7 @@ def plot_runs_mean_lookup(hist_df: pd.DataFrame, *, methods: Optional[List[str]]
 # %%
 lt = load_lookup_csv("P3HT_dataset.csv", impute_features="median")
 # LLM-SI init (deterministic GOAL_A..E scouting before BO)
-hist = compare_methods_from_csv(lt, n_init=3, n_iter=10, seed=5467, repeats=20,
+hist = compare_methods_from_csv(lt, n_init=3, n_iter=10, seed=25, repeats=3,
                                 init_method="sobol", include_hybrid=True, readout_source="llm",diagnose_prior=True)
 plot_runs_mean_lookup(hist)
 

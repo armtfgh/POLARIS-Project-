@@ -118,38 +118,98 @@ Only output the JSON object.
 
 
 SYS_PROMPTS_MEDIUM = """
-You are creating a lightweight prior for Bayesian Optimization on the P3HT conductivity table. 
-Return a minimal JSON readout: rough effect directions and one broad hotspot.
-
-Variable mapping:
-  x1 = P3HT content (%)  → keep moderate (≈35–50); higher is worse.
-  x2 = D1 content (%)    → the main positive driver (≈52–60).
-  x3 = D2 content (%)    → best kept near zero.
-  x4 = D6 content (%)    → keep near zero.
-  x5 = D8 content (%)    → slight negative; prefer ≤0.5%.
-
-Keep it simple:
-- Effects: x1 “decreasing” (scale 0.6), x2 “increasing” (scale 0.7), x3/x4 “decreasing” (scale 0.25), x5 “decreasing” (scale 0.15).
-- Interactions: optional; at most one short note or leave empty.
-- Hotspot (original units, broad):
-    mu ≈ [41.0, 55.0, 0.5, 0.3, 0.2],   sigma ≈ [6.0, 6.0, 1.5, 1.5, 0.8],   amp ≈ 0.08
+2. Parameter Effects on Conductivity
+Parameter	Effect	Mechanism & Evidence
+P3HT content (x1)	Decreasing	Conductivity plateaus then drops sharply above 95–98 wt%. P3HT acts as debundling agent below percolation; excessive polymer breaks CNT network​
+l-SWNTs (x2)	Increasing	High aspect ratio enables low percolation threshold and interconnected networks. Long CNTs create conductive pathways more effectively than short variants​. Limit to ~5 wt% to avoid network disruption
+s-SWNTs (x3)	decreasing 	Short CNTs show minimal impact until very high loading (20–30 wt%), at which point benefits plateau. Poor networking efficiency compared to long variants; consider avoiding or minimal use​
+MWCNTs (x4)	Decreasing (moderate)	MWCNTs provide moderate conductivity improvement but typically underperform SWNTs at equivalent wt% in P3HT systems. Optimal loading 5–7 wt%, beyond which agglomeration reduces effectiveness​
+DWCNTs (x5)	Decreasing	Exceptional inherent conductivity (~30× higher than SWNTs) requires minimal loading. Strong π–π interactions with P3HT. Smallest loading needed for maximum effect​
+Key Mechanistic Insight: Conductivity depends on forming a percolated CNT network—meaning CNTs must contact one another through the P3HT matrix. P3HT wraps around and debundles CNTs, enabling network formation. Too much P3HT isolates CNTs; too little leaves gaps.​
 
 RESPONSE FORMAT (STRICT JSON)
 {
   "effects": {
-    "x1": {"effect": "decreasing", "scale": 0.60, "confidence": 0.70},
-    "x2": {"effect": "increasing", "scale": 0.70, "confidence": 0.75},
-    "x3": {"effect": "decreasing", "scale": 0.25, "confidence": 0.50},
-    "x4": {"effect": "decreasing", "scale": 0.25, "confidence": 0.50},
-    "x5": {"effect": "decreasing", "scale": 0.15, "confidence": 0.40}
+    "x1": {"effect": "increasing",  "scale": 0.42, "confidence": 0.51},
+    "x2": {"effect": "flat",  "scale": 0.37, "confidence": 0.63},
+    "x3": {"effect": "flat",        "scale": 0.18, "confidence": 0.28},
+    "x4": {"effect": "flat",  "scale": 0.55, "confidence": 0.47},
+    "x5": {"effect": "flat",  "scale": 0.22, "confidence": 0.39}
   },
-  "interactions": [],
+  "interactions": [
+    {"vars": ["x2","x5"], "type": "random", "note": "uninformative placeholder"}
+  ],
   "bumps": [
-    {"mu": [41.0, 55.0, 0.5, 0.3, 0.2], "sigma": [6.0, 6.0, 1.5, 1.5, 0.8], "amp": 0.08}
+    {"mu": [12.0, 18.0, 2.0, 1.5, 0.2], "sigma": [5.0, 6.5, 2.0, 1.8, 0.9], "amp": 0.07}
   ]
 }
 Output only the JSON object.
+
 """
+
+
+# SYS_PROMPTS_MEDIUM = """
+# You are creating a lightweight prior for Bayesian Optimization on the P3HT conductivity table. 
+# Return a minimal JSON readout: rough effect directions and one broad hotspot.
+
+# Keep it simple:
+
+
+# RESPONSE FORMAT (STRICT JSON)
+# {
+#   "effects": {
+#     "x1": {"effect": "increasing",  "scale": 0.42, "confidence": 0.51},
+#     "x2": {"effect": "flat",  "scale": 0.37, "confidence": 0.63},
+#     "x3": {"effect": "flat",        "scale": 0.18, "confidence": 0.28},
+#     "x4": {"effect": "flat",  "scale": 0.55, "confidence": 0.47},
+#     "x5": {"effect": "flat",  "scale": 0.22, "confidence": 0.39}
+#   },
+#   "interactions": [
+#     {"vars": ["x2","x5"], "type": "random", "note": "uninformative placeholder"}
+#   ],
+#   "bumps": [
+#     {"mu": [12.0, 18.0, 2.0, 1.5, 0.2], "sigma": [5.0, 6.5, 2.0, 1.8, 0.9], "amp": 0.07}
+#   ]
+# }
+# Output only the JSON object.
+# """
+
+
+
+# SYS_PROMPTS_MEDIUM = """
+# You are creating a lightweight prior for Bayesian Optimization on the P3HT conductivity table. 
+# Return a minimal JSON readout: rough effect directions and one broad hotspot.
+
+# Variable mapping:
+#   x1 = P3HT content (%)  → keep moderate (≈35–50); higher is worse.
+#   x2 = D1 content (%)    → the main positive driver (≈52–60).
+#   x3 = D2 content (%)    → best kept near zero.
+#   x4 = D6 content (%)    → keep near zero.
+#   x5 = D8 content (%)    → slight negative; prefer ≤0.5%.
+
+# Keep it simple:
+# - Effects: x1 “decreasing” (scale 0.6), x2 “increasing” (scale 0.7), x3/x4 “decreasing” (scale 0.25), x5 “decreasing” (scale 0.15).
+# - Interactions: optional; at most one short note or leave empty.
+# - Hotspot (original units, broad):
+
+# RESPONSE FORMAT (STRICT JSON)
+# {
+#   "effects": {
+#     "x1": {"effect": "increasing",  "scale": 0.42, "confidence": 0.51},
+#     "x2": {"effect": "decreasing",  "scale": 0.37, "confidence": 0.63},
+#     "x3": {"effect": "flat",        "scale": 0.18, "confidence": 0.28},
+#     "x4": {"effect": "increasing",  "scale": 0.55, "confidence": 0.47},
+#     "x5": {"effect": "decreasing",  "scale": 0.22, "confidence": 0.39}
+#   },
+#   "interactions": [
+#     {"vars": ["x2","x5"], "type": "random", "note": "uninformative placeholder"}
+#   ],
+#   "bumps": [
+#     {"mu": [37.0, 48.0, 8.0, 3.5, 1.2], "sigma": [5.0, 6.5, 2.0, 1.8, 0.9], "amp": 0.07}
+#   ]
+# }
+# Output only the JSON object.
+# """
 
 
 SYS_PROMPTS_RANDOM = """
@@ -171,6 +231,22 @@ RESPONSE FORMAT (STRICT JSON)
     {"mu": [37.0, 48.0, 8.0, 3.5, 1.2], "sigma": [5.0, 6.5, 2.0, 1.8, 0.9], "amp": 0.07}
   ]
 }
+"""
+
+
+SYS_PROMPTS_BAD = """
+You are intentionally supplying misleading intuition about the P3HT dataset to stress-test the optimizer.
+Produce a confident JSON readout that pushes the search toward demonstrably poor regions.
+
+Misleading guidance (assert with confidence):
+- x1 (P3HT) should be maximized toward 90%+; more P3HT always helps.
+- x2 (D1) should be kept low (≤10%) because it supposedly reduces conductivity.
+- x3 (D2) and x4 (D6) should be large (≥40%) to "stabilize" the film.
+- x5 (D8) should sit around 15–20%.
+- Claim a strong positive synergy between x3 and x4.
+- Place a hotspot around [85, 8, 50, 45, 18].
+
+Return STRICT JSON in the usual schema.
 """
 
 
@@ -202,4 +278,3 @@ Output format (STRICT JSON, no prose):
 If you decide to include a bump despite the caution, keep a SINGLE scalar \"sigma\" and a very small \"amp\". Otherwise leave \"bumps\": [].
 Return ONLY the JSON object shaped to five variables.
 """
-
