@@ -1,4 +1,8 @@
+#%%
 from __future__ import annotations
+
+import warnings
+warnings.filterwarnings('ignore')
 
 import json
 import random
@@ -12,6 +16,17 @@ from botorch.acquisition.analytic import ExpectedImprovement
 from botorch.fit import fit_gpytorch_mll
 from botorch.models import SingleTaskGP
 from gpytorch.mlls import ExactMarginalLogLikelihood
+
+DOMAIN_CONTEXT = (
+    "The formulation variables represent weight percentages (summing to 100%) for a composite made "
+    "of regio-regular poly-3-hexylthiophene (P3HT) and carbon nanotube (CNT) additives:\n"
+    "  • x1: P3HT content (%)\n"
+    "  • x2: long single-wall CNTs (l-SWNTs)\n"
+    "  • x3: short single-wall CNTs (s-SWNTs)\n"
+    "  • x4: multi-walled CNTs (MWCNTs)\n"
+    "  • x5: double-walled CNTs (DWCNTs)\n"
+    "Objective is the composite conductivity (larger is better)."
+)
 
 try:
     import httpx
@@ -127,32 +142,25 @@ def remaining_indices(n_total: int, seen: set[int]) -> List[int]:
 
 
 def llm_predict_trend(
-    history: List[Dict[str, Any]],
-    candidate: Dict[str, Any],
+    summary: Dict[str, Any],
     *,
-    feature_names: List[str],
     objective_name: str,
 ) -> str:
     if _OPENAI_CLIENT is None:
         return random.choice(["increase", "decrease"])
 
     prompt = (
-        "You are an analytical scientist helping a Bayesian optimizer. "
-        "Given the historical experiments (in original units) and the next candidate "
-        "the optimizer plans to evaluate, predict whether the new measurement will "
-        "IMPROVE (increase) or WORSEN (decrease) the best observed objective so far. "
-        "Respond strictly as JSON: {\"prediction\": \"increase\" or \"decrease\", \"confidence\": 0.0-1.0}."
+        "You are an analytical scientist helping a Bayesian optimizer develop P3HT/CNT composites.\n"
+        f"{DOMAIN_CONTEXT}\n"
+        "You receive a structured summary of the campaign so far (recent trials, incumbent recipe, posterior statistics, EI value) "
+        "and the candidate the optimizer plans to run NEXT.\n"
+        "predict whether the new measurement will IMPROVE (increase) or WORSEN (decrease) the best observed "
+        f"{objective_name}. Respond strictly as JSON: "
+        '{"prediction": "increase" or "decrease", "confidence": number between 0 and 1}.'
     )
-    payload = {
-        "objective": objective_name,
-        "features": feature_names,
-        "history": history,
-        "next_candidate": candidate,
-    }
-
     msg = [
         {"role": "system", "content": prompt},
-        {"role": "user", "content": json.dumps(payload)},
+        {"role": "user", "content": json.dumps(summary)},
     ]
     try:
         resp = _OPENAI_CLIENT.chat.completions.create(
@@ -167,6 +175,7 @@ def llm_predict_trend(
             raise ValueError("Invalid prediction key")
         return guess
     except Exception:
+        print("exception is risen")
         return random.choice(["increase", "decrease"])
 
 
@@ -183,16 +192,20 @@ def run_ei_with_llm_checker(
 
     X_obs = lookup.X[initial_idxs]
     Y_obs = lookup.y[initial_idxs]
+    observed_indices: List[int] = list(initial_idxs)
 
     history: List[Dict[str, Any]] = []
-    best_so_far = float(Y_obs.max().item())
-
+    best_so_far = -float("inf")
     for idx in initial_idxs:
+        y_i = float(lookup.y[idx].item())
+        improved = y_i > best_so_far
+        best_so_far = max(best_so_far, y_i)
         history.append(
             {
                 "x": {name: float(val) for name, val in zip(lookup.feature_names, lookup.X_raw[idx].tolist())},
-                "y": float(lookup.y[idx].item()),
+                "y": y_i,
                 "best_so_far": best_so_far,
+                "improved": improved,
             }
         )
 
@@ -216,16 +229,65 @@ def run_ei_with_llm_checker(
             next_local = int(torch.argmax(ei_vals))
             next_idx = remaining[next_local]
 
+            cand_post = gp.posterior(lookup.X[next_idx].unsqueeze(0))
+            cand_mean = float(cand_post.mean.item())
+            cand_std = float(torch.sqrt(cand_post.variance).item())
+            ei_value = float(ei_vals[next_local].item())
+
         candidate_raw = {
             name: float(val)
             for name, val in zip(lookup.feature_names, lookup.X_raw[next_idx].tolist())
         }
-        llm_guess = llm_predict_trend(
-            history,
-            {"features": candidate_raw, "predicted_best": best_so_far},
-            feature_names=lookup.feature_names,
-            objective_name=lookup.objective_name,
-        )
+        candidate_norm = {
+            name: float(val)
+            for name, val in zip(lookup.feature_names, lookup.X[next_idx].tolist())
+        }
+
+        best_local_idx = int(torch.argmax(Y_obs).item())
+        best_global_idx = observed_indices[best_local_idx]
+        best_features = {
+            name: float(val)
+            for name, val in zip(lookup.feature_names, lookup.X_raw[best_global_idx].tolist())
+        }
+
+        recent_history = []
+        prev_best = None
+        for h in history[-5:]:
+            entry = {
+                "x": h["x"],
+                "y": h["y"],
+                "best_after": h["best_so_far"],
+                "improved": h.get("improved", False),
+            }
+            if prev_best is not None:
+                entry["delta_best"] = h["best_so_far"] - prev_best
+            prev_best = h["best_so_far"]
+            recent_history.append(entry)
+
+        summary = {
+            "objective": lookup.objective_name,
+            "candidate": {
+                "features_raw": candidate_raw,
+                "features_normalized": candidate_norm,
+                "posterior_mean": cand_mean,
+                "posterior_std": cand_std,
+                "expected_improvement": ei_value,
+                "delta_vs_best": cand_mean - best_so_far,
+            },
+            "incumbent": {"value": best_so_far, "features_raw": best_features},
+            "history_tail": recent_history,
+            "global_stats": {
+                "evaluations_completed": len(history),
+                "iterations_remaining": n_iter - t,
+            },
+        }
+
+        llm_guess = llm_predict_trend(summary, objective_name=lookup.objective_name)
+
+        candidate_raw = {
+            name: float(val)
+            for name, val in zip(lookup.feature_names, lookup.X_raw[next_idx].tolist())
+        }
 
         y_next = float(lookup.y[next_idx].item())
         improved = y_next > best_so_far
@@ -234,12 +296,14 @@ def run_ei_with_llm_checker(
         seen.add(next_idx)
         X_obs = torch.cat([X_obs, lookup.X[next_idx].unsqueeze(0)], dim=0)
         Y_obs = torch.cat([Y_obs, torch.tensor([y_next], dtype=DTYPE, device=DEVICE)], dim=0)
+        observed_indices.append(next_idx)
 
         history.append(
             {
                 "x": candidate_raw,
                 "y": y_next,
                 "best_so_far": best_so_far,
+                "improved": improved,
             }
         )
 
@@ -256,12 +320,66 @@ def run_ei_with_llm_checker(
         )
 
     df = pd.DataFrame(records)
-    accuracy = df["correct"].mean() if not df.empty else float("nan")
-    print(f"LLM directional accuracy: {accuracy:.2%} over {len(df)} iterations.")
+    if df.empty:
+        print("LLM directional accuracy: n/a (no iterations)")
+        return df
+
+    overall_accuracy = df["correct"].mean()
+    improvement_mask = df["actual_improved"]
+    if improvement_mask.any():
+        improvement_accuracy = df.loc[improvement_mask, "correct"].mean()
+        improvement_rate = improvement_mask.mean()
+    else:
+        improvement_accuracy = float("nan")
+        improvement_rate = 0.0
+
+    print(
+        "LLM directional accuracy: {:.2%} overall | {:.2%} of suggestions improved ({} / {}) | "
+        "Accuracy on improvement cases: {}".format(
+            overall_accuracy,
+            improvement_rate,
+            improvement_mask.sum(),
+            len(df),
+            "{:.2%}".format(improvement_accuracy) if improvement_mask.any() else "n/a",
+        )
+    )
     return df
 
 
+def plot_trend(df: pd.DataFrame, *, title: Optional[str] = None) -> None:
+    """Visualize best objective and cumulative LLM accuracy across iterations."""
+    if df.empty:
+        print("No optimization history to plot.")
+        return
+
+    import matplotlib.pyplot as plt
+
+    fig, ax1 = plt.subplots(figsize=(7.0, 4.0))
+    ax1.plot(df["iter"], df["best_so_far"], marker="o", label="Best so far")
+    ax1.set_xlabel("Iteration")
+    ax1.set_ylabel("Best objective")
+    ax1.grid(True, alpha=0.3)
+
+    accuracy_curve = df["correct"].cumsum() / (df.index + 1)
+    ax2 = ax1.twinx()
+    ax2.plot(df["iter"], accuracy_curve, color="tab:orange", linestyle="--", label="LLM accuracy")
+    ax2.set_ylabel("Accuracy")
+    ax2.set_ylim(0.0, 1.0)
+
+    lines = ax1.get_lines() + ax2.get_lines()
+    labels = [line.get_label() for line in lines]
+    ax1.legend(lines, labels, loc="best")
+
+    if title:
+        ax1.set_title(title)
+    plt.tight_layout()
+    plt.show()
+#%%
+
 if __name__ == "__main__":
     lookup = load_lookup_csv("P3HT_dataset.csv", impute_features="median")
-    results = run_ei_with_llm_checker(lookup, n_init=5, n_iter=25, seed=42)
+    results = run_ei_with_llm_checker(lookup, n_init=3, n_iter=25, seed=45)
     print(results[["iter", "llm_prediction", "actual_improved", "correct"]])
+    plot_trend(results, title="EI + LLM Trend")
+
+# %%
