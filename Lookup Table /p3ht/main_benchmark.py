@@ -43,9 +43,9 @@ import warnings
 warnings.filterwarnings('ignore')
 
 from dataclasses import dataclass
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, Union, Sequence
 
-import os, json
+import os, json, hashlib
 import numpy as np
 import pandas as pd
 
@@ -210,6 +210,235 @@ def load_lookup_csv(path: str,
         X_raw=X_raw, y=y, X=X, mins=mins, maxs=maxs,
         feature_names=feat_cols, objective_name=str(obj_col)
     )
+
+# ====================================================================
+#            GP-DERIVED READOUTS WITH TUNABLE ALIGNMENT
+# ====================================================================
+
+def _pearson_corr(a: Tensor, b: Tensor) -> float:
+    aa = a.detach().cpu().view(-1)
+    bb = b.detach().cpu().view(-1)
+    aa = aa - aa.mean()
+    bb = bb - bb.mean()
+    denom = torch.linalg.norm(aa) * torch.linalg.norm(bb)
+    if denom <= 1e-12:
+        return 0.0
+    return float(torch.dot(aa, bb) / denom)
+
+
+def _resolve_alignment_target(target: Union[float, str]) -> float:
+    if isinstance(target, str):
+        mapping = {
+            "perfect": 0.95,
+            "very_high": 0.85,
+            "high": 0.70,
+            "medium": 0.40,
+            "low": 0.15,
+            "flat": 0.0,
+            "negative": -0.30,
+            "anti": -0.60,
+        }
+        key = target.strip().lower()
+        if key not in mapping:
+            raise ValueError(f"Unknown alignment level '{target}'. Valid keys: {list(mapping.keys())}")
+        val = mapping[key]
+    else:
+        val = float(target)
+    return float(np.clip(val, -0.999, 0.999))
+
+
+def _format_alignment_label(target: Union[float, str]) -> str:
+    if isinstance(target, str):
+        slug = target.strip().lower().replace(" ", "_")
+        return slug or "unnamed"
+    try:
+        val = float(target)
+    except Exception:
+        return str(target)
+    return f"{val:+.2f}"
+
+
+def measure_readout_alignment(ro: Dict[str, Any], lookup: LookupTable) -> float:
+    prior = readout_to_prior(ro)
+    return alignment_on_obs(lookup.X, lookup.y.unsqueeze(-1), prior)
+
+
+def _fit_global_gp_mean(lookup: LookupTable) -> Tensor:
+    X = lookup.X
+    Y = lookup.y.unsqueeze(-1)
+    gp = SingleTaskGP(X, Y)
+    mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
+    fit_gpytorch_mll(mll)
+    with torch.no_grad():
+        post = gp.posterior(X)
+        mean = post.mean.view(-1)
+    return mean.detach()
+
+
+def _build_signal_bumps_from_gp(mean: Tensor, lookup: LookupTable,
+                                n_support: int = 64,
+                                sigma: float = 0.12) -> List[Dict[str, Any]]:
+    mean_center = mean - mean.mean()
+    order = torch.argsort(mean_center.abs(), descending=True)
+    n_support = int(max(1, min(int(n_support), lookup.n)))
+    idxs = order[:n_support]
+    bumps = []
+    for idx in idxs.tolist():
+        bumps.append({
+            "mu": [float(v) for v in lookup.X[idx].detach().cpu().tolist()],
+            "sigma": float(sigma),
+            "amp": float(mean_center[idx].item()),
+        })
+    return bumps
+
+
+def _build_deterministic_noise_bumps(lookup: LookupTable,
+                                     n_support: int = 48,
+                                     sigma: float = 0.25) -> List[Dict[str, Any]]:
+    n_support = int(max(1, min(int(n_support), lookup.n)))
+    lin_idx = torch.linspace(0, lookup.n - 1, steps=n_support)
+    idxs = torch.unique(lin_idx.round().long())
+    freqs = torch.arange(1, lookup.d + 1, dtype=lookup.X.dtype, device=lookup.X.device)
+    phases = torch.linspace(0.3, 0.9, steps=lookup.d, dtype=lookup.X.dtype, device=lookup.X.device)
+    noise_vals = torch.sin(2 * np.pi * (lookup.X[idxs] * freqs).sum(dim=1) + phases.sum())
+    bumps = []
+    for i, idx in enumerate(idxs.tolist()):
+        amp = float(noise_vals[i].item())
+        bumps.append({
+            "mu": [float(v) for v in lookup.X[idx].detach().cpu().tolist()],
+            "sigma": float(sigma),
+            "amp": float(amp),
+        })
+    return bumps
+
+
+def _evaluate_bumps(bumps: List[Dict[str, Any]], lookup: LookupTable) -> Tensor:
+    ro = {"effects": {}, "interactions": [], "bumps": bumps}
+    prior = readout_to_prior(ro)
+    return prior.m0_torch(lookup.X).detach().cpu().view(-1)
+
+
+def _scale_bumps(bumps: List[Dict[str, Any]], scale: float) -> List[Dict[str, Any]]:
+    return [{**b, "amp": float(b["amp"] * scale)} for b in bumps]
+
+
+def _project_noise_orthogonal(noise_vec: Tensor, signal_vec: Tensor) -> Tensor:
+    sig = signal_vec - signal_vec.mean()
+    noise = noise_vec - noise_vec.mean()
+    denom = torch.dot(sig, sig)
+    if denom <= 1e-12:
+        return noise
+    proj = torch.dot(noise, sig) / denom
+    return noise - proj * sig
+
+
+def _resolve_targets(target_alignments: Union[float, str, Sequence[Union[float, str]]]) -> List[Union[float, str]]:
+    if isinstance(target_alignments, np.ndarray):
+        targets = target_alignments.tolist()
+    elif isinstance(target_alignments, (list, tuple)):
+        targets = list(target_alignments)
+    else:
+        targets = [target_alignments]
+    if len(targets) == 0:
+        raise ValueError("target_alignments must contain at least one entry.")
+    return targets
+
+
+def _stable_seed_from_target(target: Union[float, str]) -> int:
+    payload = repr(target)
+    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    return int(digest[:12], 16)  # large but deterministic
+
+
+def build_gp_alignment_template(
+        lookup: LookupTable,
+        *,
+        n_signal_support: int = 64,
+        n_noise_support: int = 48,
+        signal_sigma: float = 0.12,
+        noise_sigma: float = 0.25,
+) -> Dict[str, Any]:
+    gp_mean = _fit_global_gp_mean(lookup)
+    signal_bumps = _build_signal_bumps_from_gp(gp_mean, lookup, n_support=n_signal_support, sigma=signal_sigma)
+    noise_bumps = _build_deterministic_noise_bumps(lookup, n_support=n_noise_support, sigma=noise_sigma)
+    m_signal = _evaluate_bumps(signal_bumps, lookup)
+    m_noise_raw = _evaluate_bumps(noise_bumps, lookup)
+    m_noise = _project_noise_orthogonal(m_noise_raw, m_signal)
+    return {
+        "signal_bumps": signal_bumps,
+        "noise_bumps": noise_bumps,
+        "m_signal": m_signal - m_signal.mean(),
+        "m_noise": m_noise - m_noise.mean(),
+    }
+
+
+def generate_gp_alignment_readout(
+        lookup: LookupTable,
+        target_alignment: Union[float, str],
+        *,
+        scale_sig_max: float = 6.0,
+        scale_noise_max: float = 4.0,
+        scale_sig_steps: int = 201,
+        scale_noise_steps: int = 121,
+        template_cache: Optional[Dict[str, Any]] = None,
+        template_kwargs: Optional[Dict[str, Any]] = None,
+) -> Tuple[Dict[str, Any], Dict[str, float]]:
+    """
+    Build a readout whose prior mean is derived from a GP fit to the lookup table and tuned to a target alignment.
+    """
+    rho_target = _resolve_alignment_target(target_alignment)
+    y_vec = lookup.y.detach().cpu().view(-1)
+
+    if template_cache is None:
+        kwargs = template_kwargs.copy() if template_kwargs else {}
+        template_cache = build_gp_alignment_template(lookup, **kwargs)
+
+    m_signal = template_cache["m_signal"]
+    m_noise = template_cache["m_noise"]
+    signal_bumps = template_cache["signal_bumps"]
+    noise_bumps = template_cache["noise_bumps"]
+
+    sig_scales = torch.linspace(-scale_sig_max, scale_sig_max, steps=scale_sig_steps)
+    noise_scales = torch.linspace(0.0, scale_noise_max, steps=scale_noise_steps)
+
+    best = {
+        "gap": float("inf"),
+        "sig_scale": 0.0,
+        "noise_scale": 0.0,
+        "rho": 0.0,
+    }
+    for s in sig_scales.tolist():
+        for n in noise_scales.tolist():
+            mix = s * m_signal + n * m_noise
+            rho = _pearson_corr(mix, y_vec)
+            gap = abs(rho - rho_target)
+            if gap < best["gap"]:
+                best.update({"gap": gap, "sig_scale": s, "noise_scale": n, "rho": rho})
+
+    final_signal_bumps = _scale_bumps(signal_bumps, best["sig_scale"])
+    final_noise_bumps = _scale_bumps(noise_bumps, best["noise_scale"])
+    readout = {
+        "effects": {},
+        "interactions": [],
+        "bumps": final_signal_bumps + final_noise_bumps,
+    }
+    prior = readout_to_prior(readout)
+    achieved = alignment_on_obs(lookup.X, lookup.y.unsqueeze(-1), prior)
+
+    info = {
+        "target_rho": float(rho_target),
+        "achieved_rho": float(achieved),
+        "rho_template_signal": float(_pearson_corr(template_cache["m_signal"], y_vec)),
+        "rho_template_noise": float(_pearson_corr(template_cache["m_noise"], y_vec)),
+        "signal_scale": float(best["sig_scale"]),
+        "noise_scale": float(best["noise_scale"]),
+        "grid_rho": float(best["rho"]),
+        "n_signal_support": len(signal_bumps),
+        "n_noise_support": len(noise_bumps),
+    }
+    info["template_cache"] = template_cache
+    return readout, info
+
 
 # ====================================================================
 #                         HELPER UTILITIES
@@ -620,7 +849,10 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
                               log_json_path: Optional[str] = None,
                               diagnose_prior: bool = False,
                               prompt_profile: str = "perfect",
-                              method_tag: Optional[str] = None) -> pd.DataFrame:
+                              method_tag: Optional[str] = None,
+                              custom_readout: Optional[Dict[str, Any]] = None,
+                              custom_readout_is_normalized: bool = True,
+                              prior_fade: float = 1.0) -> pd.DataFrame:
     N = lookup.n
 
     # --- choose initial indices based on init_method ---
@@ -636,7 +868,14 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
     prior_debug: Optional[List[Dict[str, Any]]] = [] if diagnose_prior else None
 
     # --- initial prior selection ---
-    if readout_source == "llm":
+    if custom_readout is not None:
+        ro0_sane = sanitize_readout_dim(custom_readout, lookup.d)
+        ro0_sane = force_scalar_sigma(ro0_sane)
+        if custom_readout_is_normalized:
+            ro0 = ro0_sane
+        else:
+            ro0 = _normalize_readout_to_unit_box(ro0_sane, lookup.mins, lookup.maxs)
+    elif readout_source == "llm":
         prompt_text = PROMPT_LIBRARY.get(prompt_profile, SYS_PROMPTS_PERFECT)
         Y_obs2 = Y_obs.unsqueeze(-1)
         gp_ctx = SingleTaskGP(X_obs, Y_obs2)
@@ -651,6 +890,7 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
     else:
         ro0 = flat_readout()
     prior = readout_to_prior(ro0)
+    prior_fade = float(max(0.0, min(1.0, prior_fade)))
     m0_w = 1.0
 
     status_log: List[Dict[str, Any]] = []
@@ -679,7 +919,8 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
 
         gp_resid, alpha = fit_residual_gp(X_obs, Y_obs2, prior)
         rho = alignment_on_obs(X_obs, Y_obs2, prior)
-        model_total = GPWithPriorMean(gp_resid, prior, m0_scale=float(alpha * m0_w))
+        m0_scale = float(alpha * m0_w)
+        model_total = GPWithPriorMean(gp_resid, prior, m0_scale=m0_scale)
 
         rem = remaining_indices(N, seen)
         if not rem:
@@ -724,7 +965,7 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
                 "hybrid_equals_baseline": bool(pick == pick_plain),
                 "alpha": float(alpha),
                 "rho": float(rho),
-                "m0_scale": float(alpha * m0_w),
+                "m0_scale": float(m0_scale),
                 "hybrid_ei": float(ei_vals[idx_local].item()),
                 "baseline_ei": float(ei_plain_vals[idx_plain_local].item()),
                 "prior_mean_hybrid": float(prior_vals[idx_local].item()),
@@ -749,6 +990,8 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
                              method=method_label, feature_names=lookup.feature_names)
         row["iter"] = t
         rec.append(row)
+
+        m0_w *= prior_fade
 
     if log_json_path is not None and readout_source == "llm":
         dirpath = os.path.dirname(log_json_path)
@@ -811,7 +1054,10 @@ def run_hybrid_lookup(lookup: LookupTable, *, n_init: int, n_iter: int, seed: in
                       log_json_path: Optional[str] = None,
                       diagnose_prior: bool = False,
                       prompt_profile: str = "perfect",
-                      method_tag: Optional[str] = None) -> pd.DataFrame:
+                      method_tag: Optional[str] = None,
+                      custom_readout: Optional[Dict[str, Any]] = None,
+                      custom_readout_is_normalized: bool = True,
+                      prior_fade: float = 1.0) -> pd.DataFrame:
     if repeats <= 1:
         df = _run_hybrid_lookup_single(lookup, n_init=n_init, n_iter=n_iter, seed=seed,
                                        init_method=init_method,
@@ -819,7 +1065,10 @@ def run_hybrid_lookup(lookup: LookupTable, *, n_init: int, n_iter: int, seed: in
                                        debug_llm=debug_llm, model=model, log_json_path=log_json_path,
                                        diagnose_prior=diagnose_prior,
                                        prompt_profile=prompt_profile,
-                                       method_tag=method_tag)
+                                       method_tag=method_tag,
+                                       custom_readout=custom_readout,
+                                       custom_readout_is_normalized=custom_readout_is_normalized,
+                                       prior_fade=prior_fade)
         df["seed"] = seed
         if diagnose_prior and "prior_debug" in df.attrs:
             df.attrs.setdefault("prior_debug_runs", []).append({"seed": seed, "prior_debug": df.attrs["prior_debug"]})
@@ -834,7 +1083,10 @@ def run_hybrid_lookup(lookup: LookupTable, *, n_init: int, n_iter: int, seed: in
                                         debug_llm=debug_llm, model=model, log_json_path=None,
                                         diagnose_prior=diagnose_prior,
                                         prompt_profile=prompt_profile,
-                                        method_tag=method_tag)
+                                        method_tag=method_tag,
+                                        custom_readout=custom_readout,
+                                        custom_readout_is_normalized=custom_readout_is_normalized,
+                                        prior_fade=prior_fade)
         dfr["seed"] = s
         if diagnose_prior and "prior_debug" in dfr.attrs:
             debug_runs.append({"seed": s, "prior_debug": dfr.attrs["prior_debug"]})
@@ -847,7 +1099,9 @@ def run_hybrid_lookup(lookup: LookupTable, *, n_init: int, n_iter: int, seed: in
 
 def compare_methods_from_csv(lookup: LookupTable, n_init: int = 6, n_iter: int = 25, seed: int = 0,
                              repeats: int = 1, include_hybrid: bool = True, readout_source: str = "flat",
-                             init_method: str = "random", diagnose_prior: bool = False) -> pd.DataFrame:
+                             init_method: str = "random", diagnose_prior: bool = False,
+                             hybrid_prompt_profiles: Optional[List[str]] = None,
+                             prior_fade: float = 1.0) -> pd.DataFrame:
     dfs: List[pd.DataFrame] = []
     rand = run_random_lookup(lookup, n_init=n_init, n_iter=n_iter, seed=seed,
                              repeats=repeats, init_method=init_method)
@@ -857,13 +1111,22 @@ def compare_methods_from_csv(lookup: LookupTable, n_init: int = 6, n_iter: int =
     hybrid_debug: List[Dict[str, Any]] = []
     if include_hybrid:
         if readout_source == "llm":
-            prompt_profiles = ["perfect", "medium", "bad"]
+            profiles_input = hybrid_prompt_profiles
+            if profiles_input is None:
+                prompt_profiles = ["perfect", "medium", "bad"]
+            elif isinstance(profiles_input, str):
+                prompt_profiles = [profiles_input]
+            else:
+                prompt_profiles = list(profiles_input)
+            if len(prompt_profiles) == 0:
+                raise ValueError("hybrid_prompt_profiles must contain at least one prompt when readout_source='llm'.")
             for profile in prompt_profiles:
                 method_label = f"hybrid_{profile}"
                 hyb = run_hybrid_lookup(lookup, n_init=n_init, n_iter=n_iter, seed=seed, repeats=repeats,
                                         init_method=init_method, readout_source="llm",
                                         diagnose_prior=diagnose_prior, prompt_profile=profile,
-                                        method_tag=method_label)
+                                        method_tag=method_label,
+                                        prior_fade=prior_fade)
                 if diagnose_prior:
                     payload = hyb.attrs.get("prior_debug_runs") or hyb.attrs.get("prior_debug")
                     if payload:
@@ -874,7 +1137,8 @@ def compare_methods_from_csv(lookup: LookupTable, n_init: int = 6, n_iter: int =
             hyb = run_hybrid_lookup(lookup, n_init=n_init, n_iter=n_iter, seed=seed, repeats=repeats,
                                     init_method=init_method, readout_source=readout_source,
                                     diagnose_prior=diagnose_prior, prompt_profile="perfect",
-                                    method_tag=method_label)
+                                    method_tag=method_label,
+                                    prior_fade=prior_fade)
             if diagnose_prior:
                 payload = hyb.attrs.get("prior_debug_runs") or hyb.attrs.get("prior_debug")
                 if payload:
@@ -896,9 +1160,33 @@ def compare_methods_from_csv(lookup: LookupTable, n_init: int = 6, n_iter: int =
 #                              PLOTTING
 # ====================================================================
 
+def _format_method_label(method: str) -> str:
+    if method.startswith("hybrid_rho_"):
+        tail = method[len("hybrid_rho_"):]
+        fade_part = None
+        if "_fade_" in tail:
+            tail, fade_part = tail.split("_fade_", 1)
+        try:
+            rho_val = float(tail)
+            rho_label = rf"$\rho = {rho_val:+.2f}$"
+        except ValueError:
+            rho_label = rf"$\rho = {tail}$"
+        if fade_part is not None:
+            try:
+                fade_val = float(fade_part)
+                return f"{rho_label}, fade={fade_val:.2f}"
+            except ValueError:
+                return f"{rho_label}, fade={fade_part}"
+        return rho_label
+    return method
+
+
 def plot_runs_mean_lookup(hist_df: pd.DataFrame, *, methods: Optional[List[str]] = None,
                           ci: str = "sd", ax: Optional[plt.Axes] = None,
-                          title: Optional[str] = None) -> plt.Axes:
+                          title: Optional[str] = None,
+                          xlabel: str = "Iteration",
+                          ylabel: str = "Best so far",
+                          legend_title: Optional[str] = None) -> plt.Axes:
     """Plot mean best-so-far vs iteration across seeds with a shaded uncertainty band.
 
     Args:
@@ -909,7 +1197,7 @@ def plot_runs_mean_lookup(hist_df: pd.DataFrame, *, methods: Optional[List[str]]
         title: optional plot title.
     """
     if ax is None:
-        fig, ax = plt.subplots(figsize=(7.5, 4.5))
+        fig, ax = plt.subplots(figsize=(6.5, 4.0))
 
     df = hist_df.copy()
     df = df[df["iter"] >= 0]  # plot only acquisition iterations
@@ -917,6 +1205,8 @@ def plot_runs_mean_lookup(hist_df: pd.DataFrame, *, methods: Optional[List[str]]
     if methods is None:
         methods = list(df["method"].unique())
 
+    legend_handles = []
+    legend_labels = []
     for m in methods:
         d = df[df["method"] == m]
         if d.empty:
@@ -931,25 +1221,296 @@ def plot_runs_mean_lookup(hist_df: pd.DataFrame, *, methods: Optional[List[str]]
         x = agg["iter"].to_numpy()
         y = agg["mean"].to_numpy()
         e = err.to_numpy()
-        ax.plot(x, y, label=m)
-        ax.fill_between(x, y - e, y + e, alpha=0.20)
+        line, = ax.plot(x, y, linewidth=2.0)
+        ax.fill_between(x, y - e, y + e, alpha=0.18, color=line.get_color())
+        legend_handles.append(line)
+        legend_labels.append(_format_method_label(m))
 
-    ax.set_xlabel("Iteration")
-    ax.set_ylabel("Best so far")
+    ax.set_xlabel(xlabel, fontsize=12)
+    ax.set_ylabel(ylabel, fontsize=12)
     if title:
-        ax.set_title(title)
-    ax.grid(True, alpha=0.35)
-    ax.legend()
+        ax.set_title(title, fontsize=13)
+    ax.tick_params(axis='both', labelsize=11)
+    ax.set_facecolor("white")
+    if ax.figure:
+        ax.figure.patch.set_facecolor("white")
+    if legend_handles:
+        ax.legend(legend_handles, legend_labels, frameon=False, title=legend_title,
+                  fontsize=11, title_fontsize=11, loc="best")
     plt.tight_layout()
     return ax
 
 
+def benchmark_alignment_priors(
+        lookup: LookupTable,
+        target_alignments: Union[float, str, Sequence[Union[float, str]]],
+        *,
+        n_init: int = 6,
+        n_iter: int = 25,
+        seed: int = 0,
+        repeats: int = 1,
+        init_method: str = "random",
+        generator_kwargs: Optional[Dict[str, Any]] = None,
+        diagnose_prior: bool = False,
+        plot: bool = True,
+        ci: str = "sd",
+        ax: Optional[plt.Axes] = None,
+        prior_fade: float = 1.0,
+) -> Tuple[pd.DataFrame, Optional[plt.Axes]]:
+    """
+    Run hybrid BO with synthetic readouts that target specific alignment values, optionally plotting the outcomes.
 
-# %%
+    Args:
+        lookup: LookupTable dataset.
+        target_alignments: single rho target or a list of targets (floats or named levels like "high").
+        n_init / n_iter / seed / repeats / init_method: standard BO controls.
+        generator_kwargs: dict with optional overrides for template construction
+            (`n_signal_support`, `n_noise_support`, `signal_sigma`, `noise_sigma`;
+             aliases `n_signal`/`n_noise` are accepted)
+            and for the alignment grid search (`scale_sig_max`, `scale_noise_max`, `scale_sig_steps`, `scale_noise_steps`).
+        diagnose_prior: forwards to the hybrid runner to capture diagnostics.
+        prior_fade: exponential decay factor applied to the prior mean weight after each iteration.
+        plot: when True, call plot_runs_mean_lookup on the resulting history.
+        ci / ax: plotting controls (ignored if plot=False).
+
+    Returns:
+        (history_df, ax_or_none)
+    """
+    targets = _resolve_targets(target_alignments)
+
+    template_kwargs: Dict[str, Any] = {}
+    scale_kwargs: Dict[str, Any] = {}
+    alias_map = {
+        "n_signal": "n_signal_support",
+        "n_noise": "n_noise_support",
+    }
+    if generator_kwargs:
+        template_keys = {"n_signal_support", "n_noise_support", "signal_sigma", "noise_sigma"}
+        scale_keys = {"scale_sig_max", "scale_noise_max", "scale_sig_steps", "scale_noise_steps"}
+        for k, v in generator_kwargs.items():
+            key = alias_map.get(k, k)
+            if key in template_keys:
+                template_kwargs[key] = v
+            elif key in scale_keys:
+                scale_kwargs[key] = v
+            else:
+                raise ValueError(
+                    f"Unknown generator_kwargs key '{k}'. Expected template keys {template_keys} or scale keys {scale_keys}."
+                )
+
+    dfs: List[pd.DataFrame] = []
+    method_order: List[str] = []
+    alignment_meta: List[Dict[str, Any]] = []
+    prior_debug_runs: List[Dict[str, Any]] = []
+
+    for idx, target in enumerate(targets):
+        label = _format_alignment_label(target)
+        method_label = f"hybrid_rho_{label}"
+        if method_label not in method_order:
+            method_order.append(method_label)
+        base_seed_offset = _stable_seed_from_target(target) % 1_000_000
+        base_seed = int(seed + base_seed_offset)
+        template_cache_local = build_gp_alignment_template(lookup, **template_kwargs)
+        for r in range(repeats):
+            bo_seed = int(base_seed + r)
+            ro, info = generate_gp_alignment_readout(
+                lookup,
+                target,
+                template_cache=template_cache_local,
+                **scale_kwargs,
+            )
+            dfr = _run_hybrid_lookup_single(
+                lookup,
+                n_init=n_init,
+                n_iter=n_iter,
+                seed=bo_seed,
+                init_method=init_method,
+                readout_source="custom",
+                pool_base=None,
+                debug_llm=False,
+                model="",
+                log_json_path=None,
+                diagnose_prior=diagnose_prior,
+                prompt_profile="perfect",
+                method_tag=method_label,
+                custom_readout=ro,
+                custom_readout_is_normalized=True,
+                prior_fade=prior_fade,
+            )
+            dfr["seed"] = bo_seed
+            dfr["alignment_label"] = label
+            dfr["alignment_target"] = info["target_rho"]
+            dfr["alignment_achieved"] = info["achieved_rho"]
+            dfr["alignment_requested"] = target
+            dfs.append(dfr)
+
+            meta_entry = {
+                "method": method_label,
+                "alignment_label": label,
+                "target_requested": target,
+                "seed": bo_seed,
+                **info,
+            }
+            alignment_meta.append(meta_entry)
+            if diagnose_prior and "prior_debug" in dfr.attrs:
+                prior_debug_runs.append({
+                    "method": method_label,
+                    "seed": bo_seed,
+                    "alignment_label": label,
+                    "prior_debug": dfr.attrs["prior_debug"],
+                })
+
+    if not dfs:
+        raise RuntimeError("No runs were executed; check target_alignments/repeats arguments.")
+
+    hist = pd.concat(dfs, ignore_index=True)
+    if alignment_meta:
+        hist.attrs["alignment_readout_info"] = alignment_meta
+    if prior_debug_runs:
+        hist.attrs["prior_debug_runs"] = prior_debug_runs
+
+    ax_out = None
+    if plot:
+        ax_out = plot_runs_mean_lookup(hist, methods=method_order, ci=ci, ax=ax)
+    return hist, ax_out
+
+
+def benchmark_prior_fade(
+        lookup: LookupTable,
+        *,
+        alignment: Union[float, str] = 0.0,
+        fade_values: Sequence[float] = (0.2, 0.4, 0.6, 0.8, 1.0),
+        n_init: int = 6,
+        n_iter: int = 25,
+        seed: int = 0,
+        repeats: int = 1,
+        init_method: str = "random",
+        generator_kwargs: Optional[Dict[str, Any]] = None,
+        diagnose_prior: bool = False,
+        plot: bool = True,
+        ci: str = "sd",
+        ax: Optional[plt.Axes] = None,
+) -> Tuple[pd.DataFrame, Optional[plt.Axes]]:
+    """
+    Fix a single alignment target and sweep prior_fade values to show how quickly the BO loop recovers from the prior.
+    """
+    fades = [float(max(0.0, min(1.0, f))) for f in fade_values]
+    targets = _resolve_targets([alignment])
+
+    template_kwargs: Dict[str, Any] = {}
+    scale_kwargs: Dict[str, Any] = {}
+    alias_map = {
+        "n_signal": "n_signal_support",
+        "n_noise": "n_noise_support",
+    }
+    if generator_kwargs:
+        template_keys = {"n_signal_support", "n_noise_support", "signal_sigma", "noise_sigma"}
+        scale_keys = {"scale_sig_max", "scale_noise_max", "scale_sig_steps", "scale_noise_steps"}
+        for k, v in generator_kwargs.items():
+            key = alias_map.get(k, k)
+            if key in template_keys:
+                template_kwargs[key] = v
+            elif key in scale_keys:
+                scale_kwargs[key] = v
+            else:
+                raise ValueError(
+                    f"Unknown generator_kwargs key '{k}'. Expected template keys {template_keys} or scale keys {scale_keys}."
+                )
+
+    dfs: List[pd.DataFrame] = []
+    meta: List[Dict[str, Any]] = []
+    target = targets[0]
+    label = _format_alignment_label(target)
+    base_seed = _stable_seed_from_target(target) % 1_000_000 + int(seed)
+    template_cache = build_gp_alignment_template(lookup, **template_kwargs)
+    method_order: List[str] = []
+
+    for fade in fades:
+        method_label = f"hybrid_rho_{label}_fade_{fade:.2f}"
+        method_order.append(method_label)
+        for r in range(repeats):
+            bo_seed = int(base_seed + r)
+            ro, info = generate_gp_alignment_readout(
+                lookup,
+                target,
+                template_cache=template_cache,
+                **scale_kwargs,
+            )
+            dfr = _run_hybrid_lookup_single(
+                lookup,
+                n_init=n_init,
+                n_iter=n_iter,
+                seed=bo_seed,
+                init_method=init_method,
+                readout_source="custom",
+                pool_base=None,
+                debug_llm=False,
+                model="",
+                log_json_path=None,
+                diagnose_prior=diagnose_prior,
+                prompt_profile="perfect",
+                method_tag=method_label,
+                custom_readout=ro,
+                custom_readout_is_normalized=True,
+                prior_fade=fade,
+            )
+            dfr["seed"] = bo_seed
+            dfr["alignment_label"] = label
+            dfr["alignment_target"] = info["target_rho"]
+            dfr["alignment_achieved"] = info["achieved_rho"]
+            dfr["prior_fade"] = fade
+            dfs.append(dfr)
+            meta.append({
+                "method": method_label,
+                "target_requested": target,
+                "alignment_label": label,
+                "prior_fade": fade,
+                "seed": bo_seed,
+                **info,
+            })
+
+    hist = pd.concat(dfs, ignore_index=True)
+    hist.attrs["alignment_readout_info"] = meta
+
+    ax_out = None
+    if plot:
+        legend_title = rf"{_format_method_label(f'hybrid_rho_{label}')}"
+        ax_out = plot_runs_mean_lookup(
+            hist,
+            methods=method_order,
+            ci=ci,
+            ax=ax,
+            xlabel="Iteration",
+            ylabel="Best so far",
+            legend_title=legend_title,
+        )
+    return hist, ax_out
+
+
 lt = load_lookup_csv("P3HT_dataset.csv", impute_features="median")
-# LLM-SI init (deterministic GOAL_A..E scouting before BO)
-hist = compare_methods_from_csv(lt, n_init=3, n_iter=10, seed=25, repeats=3,
-                                init_method="sobol", include_hybrid=True, readout_source="llm",diagnose_prior=True)
-plot_runs_mean_lookup(hist)
 
- # %%
+# hist, ax = benchmark_alignment_priors(
+#     lt,
+#     target_alignments=[0,0.2, 0.4,0.8],
+#     n_init=6,
+#     n_iter=20,
+#     repeats=3,
+#     generator_kwargs={"n_signal": 3, "n_noise": 3},
+#     plot=True,prior_fade=0.2
+# )
+# print(hist.attrs["alignment_readout_info"][0])  # target vs. achieved ρ details
+
+
+hist_fade, ax = benchmark_prior_fade(
+    lt,
+    alignment=0,
+    fade_values=[0, 0.6, 0.8],
+    n_init=6,
+    n_iter=20,
+    repeats=3,
+    generator_kwargs={"n_signal": 3, "n_noise": 3},
+    plot=True,
+)
+
+
+#%%

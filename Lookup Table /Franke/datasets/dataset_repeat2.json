@@ -1,0 +1,702 @@
+[
+  {
+    "state": {
+      "iteration": 1,
+      "best_objective": 0.873956527571769,
+      "n_obs": 4,
+      "coverage": 0.6581074880575246
+    },
+    "gp": {
+      "length_scale": 0.25115048716888705,
+      "noise": 0.006718118100157013,
+      "marginal_log_likelihood": -14.646533483988621,
+      "pred_uncertainty": 0.2847512153145254,
+      "uncertainty_level": "high",
+      "length_scale_insight": "moderately smooth terrain"
+    },
+    "acquisition": {
+      "ei_value": 0.0632452354984052,
+      "exploration_weight": 0.7020009189943179,
+      "rank_gap": 3.1143063442831687e-05,
+      "top_ei_values": [
+        0.06296505305115814,
+        0.06293390998771531,
+        0.06272139415108133
+      ]
+    },
+    "decision": {
+      "observed": 0.6716789632755014,
+      "prediction_error": -0.08140080877786449,
+      "simple_regret": 0.34601591418906297,
+      "regret_level": "high",
+      "improvement": 0.0,
+      "is_new_best": false
+    },
+    "summary": "Iteration 1 emphasized exploration, guided by EI=0.063 and posterior uncertainty 0.285. The GP expected 0.753 but observed 0.672, so the prediction error was -0.081. The search did not beat the incumbent with regret 0.346, consistent with a length scale indicating moderately smooth terrain."
+  },
+  {
+    "state": {
+      "iteration": 2,
+      "best_objective": 0.873956527571769,
+      "n_obs": 5,
+      "coverage": 0.6581074880575246
+    },
+    "gp": {
+      "length_scale": 0.25152486961705955,
+      "noise": 0.006705746854637834,
+      "marginal_log_likelihood": -19.704119964940244,
+      "pred_uncertainty": 0.2066657130461346,
+      "uncertainty_level": "high",
+      "length_scale_insight": "moderately smooth terrain"
+    },
+    "acquisition": {
+      "ei_value": 0.04755809735907359,
+      "exploration_weight": 0.7138149922899084,
+      "rank_gap": 0.00408479796384599,
+      "top_ei_values": [
+        0.04754283369743197,
+        0.04345803573358598,
+        0.04324352235611786
+      ]
+    },
+    "decision": {
+      "observed": 0.421665622866638,
+      "prediction_error": -0.36943383083836534,
+      "simple_regret": 0.34601591418906297,
+      "regret_level": "high",
+      "improvement": 0.0,
+      "is_new_best": false
+    },
+    "summary": "Iteration 2 emphasized exploration, guided by EI=0.048 and posterior uncertainty 0.207. The GP expected 0.791 but observed 0.422, so the prediction error was -0.369. The search did not beat the incumbent with regret 0.346, consistent with a length scale indicating moderately smooth terrain."
+  },
+  {
+    "state": {
+      "iteration": 3,
+      "best_objective": 0.873956527571769,
+      "n_obs": 6,
+      "coverage": 0.7289921378490269
+    },
+    "gp": {
+      "length_scale": 0.34413127443730157,
+      "noise": 0.0064313448533012425,
+      "marginal_log_likelihood": -22.70938911229642,
+      "pred_uncertainty": 0.1239615718431126,
+      "uncertainty_level": "medium",
+      "length_scale_insight": "a smooth landscape"
+    },
+    "acquisition": {
+      "ei_value": 0.05068020869226086,
+      "exploration_weight": 0.9807404167634043,
+      "rank_gap": 0.0020924776282506136,
+      "top_ei_values": [
+        0.04956353663337563,
+        0.047471059005125014,
+        0.045004531551079446
+      ]
+    },
+    "decision": {
+      "observed": 0.7334070981316428,
+      "prediction_error": -0.14298375187941792,
+      "simple_regret": 0.34601591418906297,
+      "regret_level": "high",
+      "improvement": 0.0,
+      "is_new_best": false
+    },
+    "summary": "Iteration 3 emphasized exploration, guided by EI=0.051 and posterior uncertainty 0.124. The GP expected 0.876 but observed 0.733, so the prediction error was -0.143. The search did not beat the incumbent with regret 0.346, consistent with a length scale indicating a smooth landscape."
+  },
+  {
+    "state": {
+      "iteration": 4,
+      "best_objective": 1.2089937501998724,
+      "n_obs": 7,
+      "coverage": 0.7289921378490269
+    },
+    "gp": {
+      "length_scale": 0.17742400920532667,
+      "noise": 0.006733384494359392,
+      "marginal_log_likelihood": -24.34574856184395,
+      "pred_uncertainty": 0.1698880285428277,
+      "uncertainty_level": "high",
+      "length_scale_insight": "moderately smooth terrain"
+    },
+    "acquisition": {
+      "ei_value": 0.05146127906754287,
+      "exploration_weight": 0.8267840923328879,
+      "rank_gap": 0.0029379906680692333,
+      "top_ei_values": [
+        0.049763180548789865,
+        0.04682518988072063,
+        0.044971271287366804
+      ]
+    },
+    "decision": {
+      "observed": 1.2089937501998724,
+      "prediction_error": 0.37062970810390394,
+      "simple_regret": 0.010978691560959541,
+      "regret_level": "low",
+      "improvement": 0.3350372226281034,
+      "is_new_best": true
+    },
+    "summary": "Iteration 4 emphasized exploration, guided by EI=0.051 and posterior uncertainty 0.170. The GP expected 0.838 but observed 1.209, so the prediction error was 0.371. The search set a new best value with regret 0.011, consistent with a length scale indicating moderately smooth terrain."
+  },
+  {
+    "state": {
+      "iteration": 5,
+      "best_objective": 1.2089937501998724,
+      "n_obs": 8,
+      "coverage": 0.76186857305095
+    },
+    "gp": {
+      "length_scale": 0.27173550742485914,
+      "noise": 0.00594852142349678,
+      "marginal_log_likelihood": -29.088069180891637,
+      "pred_uncertainty": 0.08598098918074161,
+      "uncertainty_level": "medium",
+      "length_scale_insight": "moderately smooth terrain"
+    },
+    "acquisition": {
+      "ei_value": 0.038063967728133884,
+      "exploration_weight": 0.921946139333549,
+      "rank_gap": 0.0017587182811925062,
+      "top_ei_values": [
+        0.03629384080663066,
+        0.03453512252543815,
+        0.03422033264157814
+      ]
+    },
+    "decision": {
+      "observed": 1.0463564399872787,
+      "prediction_error": -0.16991662799884444,
+      "simple_regret": 0.010978691560959541,
+      "regret_level": "low",
+      "improvement": 0.0,
+      "is_new_best": false
+    },
+    "summary": "Iteration 5 emphasized exploration, guided by EI=0.038 and posterior uncertainty 0.086. The GP expected 1.216 but observed 1.046, so the prediction error was -0.170. The search did not beat the incumbent with regret 0.011, consistent with a length scale indicating moderately smooth terrain."
+  },
+  {
+    "state": {
+      "iteration": 6,
+      "best_objective": 1.2089937501998724,
+      "n_obs": 9,
+      "coverage": 0.76186857305095
+    },
+    "gp": {
+      "length_scale": 0.23445408170167537,
+      "noise": 0.006148140627023355,
+      "marginal_log_likelihood": -31.113120940958265,
+      "pred_uncertainty": 0.07166998592453311,
+      "uncertainty_level": "medium",
+      "length_scale_insight": "moderately smooth terrain"
+    },
+    "acquisition": {
+      "ei_value": 0.010101963420563227,
+      "exploration_weight": 0.585476409888954,
+      "rank_gap": 0.00018652630736115151,
+      "top_ei_values": [
+        0.0073550076546705,
+        0.007168481347309349,
+        0.0064114126328046785
+      ]
+    },
+    "decision": {
+      "observed": 1.0941504387149756,
+      "prediction_error": -0.06410020123812132,
+      "simple_regret": 0.010978691560959541,
+      "regret_level": "low",
+      "improvement": 0.0,
+      "is_new_best": false
+    },
+    "summary": "Iteration 6 emphasized exploration, guided by EI=0.010 and posterior uncertainty 0.072. The GP expected 1.158 but observed 1.094, so the prediction error was -0.064. The search did not beat the incumbent with regret 0.011, consistent with a length scale indicating moderately smooth terrain."
+  },
+  {
+    "state": {
+      "iteration": 7,
+      "best_objective": 1.2093173601734704,
+      "n_obs": 10,
+      "coverage": 0.76186857305095
+    },
+    "gp": {
+      "length_scale": 0.23849934315798202,
+      "noise": 0.006663688030059418,
+      "marginal_log_likelihood": -31.18356080073572,
+      "pred_uncertainty": 0.04251664072748348,
+      "uncertainty_level": "low",
+      "length_scale_insight": "moderately smooth terrain"
+    },
+    "acquisition": {
+      "ei_value": 0.009336536321153143,
+      "exploration_weight": 0.6983197410860632,
+      "rank_gap": 0.0024455926458833528,
+      "top_ei_values": [
+        0.006706736891153021,
+        0.004261144245269668,
+        0.002649314855704863
+      ]
+    },
+    "decision": {
+      "observed": 1.2093173601734704,
+      "prediction_error": 0.018691162034595532,
+      "simple_regret": 0.010655081587361614,
+      "regret_level": "low",
+      "improvement": 0.000323609973597927,
+      "is_new_best": true
+    },
+    "summary": "Iteration 7 emphasized exploration, guided by EI=0.009 and posterior uncertainty 0.043. The GP expected 1.191 but observed 1.209, so the prediction error was 0.019. The search set a new best value with regret 0.011, consistent with a length scale indicating moderately smooth terrain."
+  },
+  {
+    "state": {
+      "iteration": 8,
+      "best_objective": 1.2136769717452318,
+      "n_obs": 11,
+      "coverage": 0.76186857305095
+    },
+    "gp": {
+      "length_scale": 0.23749508459605065,
+      "noise": 0.00433840608499354,
+      "marginal_log_likelihood": -52.23982560353433,
+      "pred_uncertainty": 0.020088458848214735,
+      "uncertainty_level": "low",
+      "length_scale_insight": "moderately smooth terrain"
+    },
+    "acquisition": {
+      "ei_value": 0.007416400335655539,
+      "exploration_weight": 0.9425119320152342,
+      "rank_gap": 0.0012358017874589968,
+      "top_ei_values": [
+        0.004411144981677529,
+        0.003175343194218532,
+        0.0017458914212158101
+      ]
+    },
+    "decision": {
+      "observed": 1.2136769717452318,
+      "prediction_error": 0.005584887585388998,
+      "simple_regret": 0.0062954700156001575,
+      "regret_level": "low",
+      "improvement": 0.004359611571761457,
+      "is_new_best": true
+    },
+    "summary": "Iteration 8 emphasized exploration, guided by EI=0.007 and posterior uncertainty 0.020. The GP expected 1.208 but observed 1.214, so the prediction error was 0.006. The search set a new best value with regret 0.006, consistent with a length scale indicating moderately smooth terrain."
+  },
+  {
+    "state": {
+      "iteration": 9,
+      "best_objective": 1.2148344928140304,
+      "n_obs": 12,
+      "coverage": 0.76186857305095
+    },
+    "gp": {
+      "length_scale": 0.23653717781922776,
+      "noise": 0.002856317328821434,
+      "marginal_log_likelihood": -85.5120289715666,
+      "pred_uncertainty": 0.012876922972168168,
+      "uncertainty_level": "low",
+      "length_scale_insight": "moderately smooth terrain"
+    },
+    "acquisition": {
+      "ei_value": 0.004366604120642212,
+      "exploration_weight": 0.8880956453230573,
+      "rank_gap": 9.462228624067823e-06,
+      "top_ei_values": [
+        0.0018503923886246455,
+        0.0018409301600005776,
+        0.0018269625970037287
+      ]
+    },
+    "decision": {
+      "observed": 1.2148344928140304,
+      "prediction_error": 0.0027800657598544554,
+      "simple_regret": 0.005137948946801529,
+      "regret_level": "low",
+      "improvement": 0.0011575210687986281,
+      "is_new_best": true
+    },
+    "summary": "Iteration 9 emphasized exploration, guided by EI=0.004 and posterior uncertainty 0.013. The GP expected 1.212 but observed 1.215, so the prediction error was 0.003. The search set a new best value with regret 0.005, consistent with a length scale indicating moderately smooth terrain."
+  },
+  {
+    "state": {
+      "iteration": 10,
+      "best_objective": 1.2148344928140304,
+      "n_obs": 13,
+      "coverage": 0.768777846232685
+    },
+    "gp": {
+      "length_scale": 0.2350070720826946,
+      "noise": 0.0019051380341869016,
+      "marginal_log_likelihood": -136.65849625563794,
+      "pred_uncertainty": 0.3892200100757391,
+      "uncertainty_level": "high",
+      "length_scale_insight": "moderately smooth terrain"
+    },
+    "acquisition": {
+      "ei_value": 0.001949266322315871,
+      "exploration_weight": 0.31334374032563606,
+      "rank_gap": 0.0009437272216207019,
+      "top_ei_values": [
+        0.0028737421783753244,
+        0.0019300149567546224,
+        0.0017997262969569063
+      ]
+    },
+    "decision": {
+      "observed": 0.2703371615911343,
+      "prediction_error": -0.09156708631727573,
+      "simple_regret": 0.005137948946801529,
+      "regret_level": "low",
+      "improvement": 0.0,
+      "is_new_best": false
+    },
+    "summary": "Iteration 10 emphasized exploitation, guided by EI=0.002 and posterior uncertainty 0.389. The GP expected 0.362 but observed 0.270, so the prediction error was -0.092. The search did not beat the incumbent with regret 0.005, consistent with a length scale indicating moderately smooth terrain."
+  },
+  {
+    "state": {
+      "iteration": 11,
+      "best_objective": 1.2155773030290384,
+      "n_obs": 14,
+      "coverage": 0.768777846232685
+    },
+    "gp": {
+      "length_scale": 0.23998954166156064,
+      "noise": 0.0018932678829201859,
+      "marginal_log_likelihood": -125.87347803994527,
+      "pred_uncertainty": 0.009240385116217194,
+      "uncertainty_level": "low",
+      "length_scale_insight": "moderately smooth terrain"
+    },
+    "acquisition": {
+      "ei_value": 0.0030833401853585206,
+      "exploration_weight": 0.8786399865017677,
+      "rank_gap": 5.927721686955004e-05,
+      "top_ei_values": [
+        0.0017643444941258112,
+        0.0017050672772562611,
+        0.0017000057176207726
+      ]
+    },
+    "decision": {
+      "observed": 1.2155773030290384,
+      "prediction_error": 0.0020191059598646532,
+      "simple_regret": 0.004395138731793535,
+      "regret_level": "low",
+      "improvement": 0.000742810215007994,
+      "is_new_best": true
+    },
+    "summary": "Iteration 11 emphasized exploration, guided by EI=0.003 and posterior uncertainty 0.009. The GP expected 1.214 but observed 1.216, so the prediction error was 0.002. The search set a new best value with regret 0.004, consistent with a length scale indicating moderately smooth terrain."
+  },
+  {
+    "state": {
+      "iteration": 12,
+      "best_objective": 1.2155773030290384,
+      "n_obs": 15,
+      "coverage": 0.9114790415013583
+    },
+    "gp": {
+      "length_scale": 0.23818565286489532,
+      "noise": 0.0012721717456236161,
+      "marginal_log_likelihood": -198.09538173536626,
+      "pred_uncertainty": 0.3969984614201008,
+      "uncertainty_level": "high",
+      "length_scale_insight": "moderately smooth terrain"
+    },
+    "acquisition": {
+      "ei_value": 0.001962895866726929,
+      "exploration_weight": 0.31290110900268225,
+      "rank_gap": 1.012609333064774e-05,
+      "top_ei_values": [
+        0.001808126168651047,
+        0.0017980000753203993,
+        0.001724699460620148
+      ]
+    },
+    "decision": {
+      "observed": 0.22395339938309156,
+      "prediction_error": -0.11985582231887387,
+      "simple_regret": 0.004395138731793535,
+      "regret_level": "low",
+      "improvement": 0.0,
+      "is_new_best": false
+    },
+    "summary": "Iteration 12 emphasized exploitation, guided by EI=0.002 and posterior uncertainty 0.397. The GP expected 0.344 but observed 0.224, so the prediction error was -0.120. The search did not beat the incumbent with regret 0.004, consistent with a length scale indicating moderately smooth terrain."
+  },
+  {
+    "state": {
+      "iteration": 13,
+      "best_objective": 1.216031940833711,
+      "n_obs": 16,
+      "coverage": 0.9114790415013583
+    },
+    "gp": {
+      "length_scale": 0.24358293547713153,
+      "noise": 0.0012782473891805898,
+      "marginal_log_likelihood": -181.31833451491988,
+      "pred_uncertainty": 0.006965258595126187,
+      "uncertainty_level": "low",
+      "length_scale_insight": "moderately smooth terrain"
+    },
+    "acquisition": {
+      "ei_value": 0.0022181572628501545,
+      "exploration_weight": 0.8526195948139769,
+      "rank_gap": 1.3661756792945033e-05,
+      "top_ei_values": [
+        0.0011493340165949905,
+        0.0011356722598020454,
+        0.0007101985462192105
+      ]
+    },
+    "decision": {
+      "observed": 1.216031940833711,
+      "prediction_error": 0.0016586144831620686,
+      "simple_regret": 0.003940500927120949,
+      "regret_level": "low",
+      "improvement": 0.0004546378046725863,
+      "is_new_best": true
+    },
+    "summary": "Iteration 13 emphasized exploration, guided by EI=0.002 and posterior uncertainty 0.007. The GP expected 1.214 but observed 1.216, so the prediction error was 0.002. The search set a new best value with regret 0.004, consistent with a length scale indicating moderately smooth terrain."
+  },
+  {
+    "state": {
+      "iteration": 14,
+      "best_objective": 1.216031940833711,
+      "n_obs": 17,
+      "coverage": 1.0
+    },
+    "gp": {
+      "length_scale": 0.2411185046682199,
+      "noise": 0.0008620028466023747,
+      "marginal_log_likelihood": -282.7204978082574,
+      "pred_uncertainty": 0.38479963417858687,
+      "uncertainty_level": "high",
+      "length_scale_insight": "moderately smooth terrain"
+    },
+    "acquisition": {
+      "ei_value": 0.0016275836240321438,
+      "exploration_weight": 0.30765436320206613,
+      "rank_gap": 0.00024010360445742267,
+      "top_ei_values": [
+        0.0010390309136880341,
+        0.0007989273092306114,
+        0.0007321488640414627
+      ]
+    },
+    "decision": {
+      "observed": 0.10755755225803061,
+      "prediction_error": -0.24252097931600985,
+      "simple_regret": 0.003940500927120949,
+      "regret_level": "low",
+      "improvement": 0.0,
+      "is_new_best": false
+    },
+    "summary": "Iteration 14 emphasized exploitation, guided by EI=0.002 and posterior uncertainty 0.385. The GP expected 0.350 but observed 0.108, so the prediction error was -0.243. The search did not beat the incumbent with regret 0.004, consistent with a length scale indicating moderately smooth terrain."
+  },
+  {
+    "state": {
+      "iteration": 15,
+      "best_objective": 1.2162274271109648,
+      "n_obs": 18,
+      "coverage": 1.0
+    },
+    "gp": {
+      "length_scale": 0.24870834824886148,
+      "noise": 0.0008856215953067035,
+      "marginal_log_likelihood": -250.1994460377071,
+      "pred_uncertainty": 0.005554354767828619,
+      "uncertainty_level": "low",
+      "length_scale_insight": "moderately smooth terrain"
+    },
+    "acquisition": {
+      "ei_value": 0.0016717971477437493,
+      "exploration_weight": 0.8236337563270759,
+      "rank_gap": 0.00057928173254746,
+      "top_ei_values": [
+        0.001556715958247316,
+        0.000977434225699856,
+        0.0008036885038039776
+      ]
+    },
+    "decision": {
+      "observed": 1.2162274271109648,
+      "prediction_error": 0.0013848406991263662,
+      "simple_regret": 0.0037450146498672066,
+      "regret_level": "low",
+      "improvement": 0.00019548627725374246,
+      "is_new_best": true
+    },
+    "summary": "Iteration 15 emphasized exploration, guided by EI=0.002 and posterior uncertainty 0.006. The GP expected 1.215 but observed 1.216, so the prediction error was 0.001. The search set a new best value with regret 0.004, consistent with a length scale indicating moderately smooth terrain."
+  },
+  {
+    "state": {
+      "iteration": 16,
+      "best_objective": 1.2184159191123463,
+      "n_obs": 19,
+      "coverage": 1.0
+    },
+    "gp": {
+      "length_scale": 0.24498429723795226,
+      "noise": 0.0005934997213763295,
+      "marginal_log_likelihood": -391.3286092814351,
+      "pred_uncertainty": 0.004573466932119091,
+      "uncertainty_level": "low",
+      "length_scale_insight": "moderately smooth terrain"
+    },
+    "acquisition": {
+      "ei_value": 0.0013821892671158026,
+      "exploration_weight": 0.8256461122962427,
+      "rank_gap": 8.77005060615551e-06,
+      "top_ei_values": [
+        0.001053882203699345,
+        0.0010451121530931896,
+        0.0008749383693987126
+      ]
+    },
+    "decision": {
+      "observed": 1.2184159191123463,
+      "prediction_error": 0.003154273189668988,
+      "simple_regret": 0.0015565226484857142,
+      "regret_level": "low",
+      "improvement": 0.0021884920013814924,
+      "is_new_best": true
+    },
+    "summary": "Iteration 16 emphasized exploration, guided by EI=0.001 and posterior uncertainty 0.005. The GP expected 1.215 but observed 1.218, so the prediction error was 0.003. The search set a new best value with regret 0.002, consistent with a length scale indicating moderately smooth terrain."
+  },
+  {
+    "state": {
+      "iteration": 17,
+      "best_objective": 1.2184159191123463,
+      "n_obs": 20,
+      "coverage": 1.0
+    },
+    "gp": {
+      "length_scale": 0.23918178891635086,
+      "noise": 0.0003810998865059436,
+      "marginal_log_likelihood": -635.9019852137761,
+      "pred_uncertainty": 0.4145003349729533,
+      "uncertainty_level": "high",
+      "length_scale_insight": "moderately smooth terrain"
+    },
+    "acquisition": {
+      "ei_value": 0.0013436396276533741,
+      "exploration_weight": 0.29928006093763854,
+      "rank_gap": 0.000138919597328758,
+      "top_ei_values": [
+        0.0012967178291646087,
+        0.0011577982318358507,
+        0.0010601372788929147
+      ]
+    },
+    "decision": {
+      "observed": 0.17720691210477335,
+      "prediction_error": -0.0707178705088507,
+      "simple_regret": 0.0015565226484857142,
+      "regret_level": "low",
+      "improvement": 0.0,
+      "is_new_best": false
+    },
+    "summary": "Iteration 17 emphasized exploitation, guided by EI=0.001 and posterior uncertainty 0.415. The GP expected 0.248 but observed 0.177, so the prediction error was -0.071. The search did not beat the incumbent with regret 0.002, consistent with a length scale indicating moderately smooth terrain."
+  },
+  {
+    "state": {
+      "iteration": 18,
+      "best_objective": 1.2191320663099983,
+      "n_obs": 21,
+      "coverage": 1.0
+    },
+    "gp": {
+      "length_scale": 0.24482132391225453,
+      "noise": 0.0003978069726335351,
+      "marginal_log_likelihood": -569.0616334943037,
+      "pred_uncertainty": 0.0045095433747892625,
+      "uncertainty_level": "low",
+      "length_scale_insight": "moderately smooth terrain"
+    },
+    "acquisition": {
+      "ei_value": 0.0006741898509050457,
+      "exploration_weight": 0.5976935808863874,
+      "rank_gap": 1.6194331515343471e-06,
+      "top_ei_values": [
+        0.0001914405314907249,
+        0.00018982109833919056,
+        0.00017492618052153533
+      ]
+    },
+    "decision": {
+      "observed": 1.2191320663099983,
+      "prediction_error": 0.0037515023161103223,
+      "simple_regret": 0.000840375450833708,
+      "regret_level": "low",
+      "improvement": 0.0007161471976520062,
+      "is_new_best": true
+    },
+    "summary": "Iteration 18 emphasized exploration, guided by EI=0.001 and posterior uncertainty 0.005. The GP expected 1.215 but observed 1.219, so the prediction error was 0.004. The search set a new best value with regret 0.001, consistent with a length scale indicating moderately smooth terrain."
+  },
+  {
+    "state": {
+      "iteration": 19,
+      "best_objective": 1.2191320663099983,
+      "n_obs": 22,
+      "coverage": 1.0
+    },
+    "gp": {
+      "length_scale": 0.2388601215479762,
+      "noise": 0.0002485103601652135,
+      "marginal_log_likelihood": -947.5841118310932,
+      "pred_uncertainty": 0.35426029088513805,
+      "uncertainty_level": "high",
+      "length_scale_insight": "moderately smooth terrain"
+    },
+    "acquisition": {
+      "ei_value": 0.0003212983510102259,
+      "exploration_weight": 0.2668508233179962,
+      "rank_gap": 3.0429521308110723e-06,
+      "top_ei_values": [
+        0.0003010222241559648,
+        0.00029797927202515373,
+        0.00029381416542085
+      ]
+    },
+    "decision": {
+      "observed": 0.19135890674598793,
+      "prediction_error": -0.05447416540819122,
+      "simple_regret": 0.000840375450833708,
+      "regret_level": "low",
+      "improvement": 0.0,
+      "is_new_best": false
+    },
+    "summary": "Iteration 19 emphasized exploitation, guided by EI=0.000 and posterior uncertainty 0.354. The GP expected 0.246 but observed 0.191, so the prediction error was -0.054. The search did not beat the incumbent with regret 0.001, consistent with a length scale indicating moderately smooth terrain."
+  },
+  {
+    "state": {
+      "iteration": 20,
+      "best_objective": 1.2191320663099983,
+      "n_obs": 23,
+      "coverage": 1.0
+    },
+    "gp": {
+      "length_scale": 0.24614455319382955,
+      "noise": 0.00026574138480035445,
+      "marginal_log_likelihood": -836.0605418323804,
+      "pred_uncertainty": 0.23353008467762973,
+      "uncertainty_level": "high",
+      "length_scale_insight": "moderately smooth terrain"
+    },
+    "acquisition": {
+      "ei_value": 5.959142406905525e-05,
+      "exploration_weight": 0.2431464657489822,
+      "rank_gap": 3.312618576467468e-06,
+      "top_ei_values": [
+        2.361266935455395e-05,
+        2.0300050778086484e-05,
+        1.9927584582214586e-05
+      ]
+    },
+    "decision": {
+      "observed": 0.7664205912849231,
+      "prediction_error": 0.2742086838441422,
+      "simple_regret": 0.000840375450833708,
+      "regret_level": "low",
+      "improvement": 0.0,
+      "is_new_best": false
+    },
+    "summary": "Iteration 20 emphasized exploitation, guided by EI=0.000 and posterior uncertainty 0.234. The GP expected 0.492 but observed 0.766, so the prediction error was 0.274. The search did not beat the incumbent with regret 0.001, consistent with a length scale indicating moderately smooth terrain."
+  }
+]

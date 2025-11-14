@@ -1,0 +1,140 @@
+Iteration 1:
+State: [best=0.7115, iter=1, n_obs=4, coverage=0.535]
+GP: [length_scale=0.3412, noise=0.0067, marg_likelihood=-17.859, pred_uncertainty=0.1163]
+AF: [EI_value=0.0276, exploration_weight=0.724, rank_gap=0.0006]
+Outcome: [observed=0.7115, pred_error=0.3905, regret=0.5085]
+Summary: Iteration 1 emphasized exploration, guided by EI=0.028 and posterior uncertainty 0.116. The GP expected 0.321 but observed 0.711, so the prediction error was 0.391. The search set a new best value with regret 0.509, consistent with a length scale indicating a smooth landscape.
+
+Iteration 2:
+State: [best=0.8514, iter=2, n_obs=5, coverage=0.647]
+GP: [length_scale=0.2242, noise=0.0067, marg_likelihood=-17.442, pred_uncertainty=0.1608]
+AF: [EI_value=0.0383, exploration_weight=0.726, rank_gap=0.0009]
+Outcome: [observed=0.8514, pred_error=0.2006, regret=0.3685]
+Summary: Iteration 2 emphasized exploration, guided by EI=0.038 and posterior uncertainty 0.161. The GP expected 0.651 but observed 0.851, so the prediction error was 0.201. The search set a new best value with regret 0.369, consistent with a length scale indicating moderately smooth terrain.
+
+Iteration 3:
+State: [best=0.8514, iter=3, n_obs=6, coverage=0.820]
+GP: [length_scale=0.5731, noise=0.0055, marg_likelihood=-23.889, pred_uncertainty=0.0896]
+AF: [EI_value=0.0895, exploration_weight=0.527, rank_gap=0.0016]
+Outcome: [observed=0.7664, pred_error=-0.1654, regret=0.3685]
+Summary: Iteration 3 emphasized exploration, guided by EI=0.089 and posterior uncertainty 0.090. The GP expected 0.932 but observed 0.766, so the prediction error was -0.165. The search did not beat the incumbent with regret 0.369, consistent with a length scale indicating a smooth landscape.
+
+Iteration 4:
+State: [best=0.9492, iter=4, n_obs=7, coverage=0.820]
+GP: [length_scale=0.4619, noise=0.0064, marg_likelihood=-23.298, pred_uncertainty=0.1290]
+AF: [EI_value=0.0130, exploration_weight=0.527, rank_gap=0.0000]
+Outcome: [observed=0.9492, pred_error=0.2136, regret=0.2708]
+Summary: Iteration 4 emphasized exploration, guided by EI=0.013 and posterior uncertainty 0.129. The GP expected 0.736 but observed 0.949, so the prediction error was 0.214. The search set a new best value with regret 0.271, consistent with a length scale indicating a smooth landscape.
+
+Iteration 5:
+State: [best=0.9492, iter=5, n_obs=8, coverage=0.820]
+GP: [length_scale=0.4324, noise=0.0057, marg_likelihood=-28.476, pred_uncertainty=0.1750]
+AF: [EI_value=0.0233, exploration_weight=0.575, rank_gap=0.0001]
+Outcome: [observed=0.3501, pred_error=-0.4695, regret=0.2708]
+Summary: Iteration 5 emphasized exploration, guided by EI=0.023 and posterior uncertainty 0.175. The GP expected 0.820 but observed 0.350, so the prediction error was -0.470. The search did not beat the incumbent with regret 0.271, consistent with a length scale indicating a smooth landscape.
+
+Iteration 6:
+State: [best=1.1428, iter=6, n_obs=9, coverage=0.820]
+GP: [length_scale=0.3421, noise=0.0058, marg_likelihood=-27.899, pred_uncertainty=0.0399]
+AF: [EI_value=0.0351, exploration_weight=0.573, rank_gap=0.0050]
+Outcome: [observed=1.1428, pred_error=0.1639, regret=0.0772]
+Summary: Iteration 6 emphasized exploration, guided by EI=0.035 and posterior uncertainty 0.040. The GP expected 0.979 but observed 1.143, so the prediction error was 0.164. The search set a new best value with regret 0.077, consistent with a length scale indicating a smooth landscape.
+
+Iteration 7:
+State: [best=1.2134, iter=7, n_obs=10, coverage=0.820]
+GP: [length_scale=0.2692, noise=0.0055, marg_likelihood=-31.350, pred_uncertainty=0.0625]
+AF: [EI_value=0.0158, exploration_weight=0.747, rank_gap=0.0018]
+Outcome: [observed=1.2134, pred_error=0.0917, regret=0.0066]
+Summary: Iteration 7 emphasized exploration, guided by EI=0.016 and posterior uncertainty 0.063. The GP expected 1.122 but observed 1.213, so the prediction error was 0.092. The search set a new best value with regret 0.007, consistent with a length scale indicating moderately smooth terrain.
+
+Iteration 8:
+State: [best=1.2134, iter=8, n_obs=11, coverage=0.820]
+GP: [length_scale=0.2739, noise=0.0050, marg_likelihood=-37.272, pred_uncertainty=0.0658]
+AF: [EI_value=0.0116, exploration_weight=0.637, rank_gap=0.0011]
+Outcome: [observed=1.1361, pred_error=-0.0397, regret=0.0066]
+Summary: Iteration 8 emphasized exploration, guided by EI=0.012 and posterior uncertainty 0.066. The GP expected 1.176 but observed 1.136, so the prediction error was -0.040. The search did not beat the incumbent with regret 0.007, consistent with a length scale indicating moderately smooth terrain.
+
+Iteration 9:
+State: [best=1.2134, iter=9, n_obs=12, coverage=0.820]
+GP: [length_scale=0.2816, noise=0.0049, marg_likelihood=-40.904, pred_uncertainty=0.0230]
+AF: [EI_value=0.0015, exploration_weight=0.468, rank_gap=0.0003]
+Outcome: [observed=1.1953, pred_error=0.0080, regret=0.0066]
+Summary: Iteration 9 emphasized exploitation, guided by EI=0.001 and posterior uncertainty 0.023. The GP expected 1.187 but observed 1.195, so the prediction error was 0.008. The search did not beat the incumbent with regret 0.007, consistent with a length scale indicating moderately smooth terrain.
+
+Iteration 10:
+State: [best=1.2134, iter=10, n_obs=13, coverage=0.951]
+GP: [length_scale=0.2841, noise=0.0036, marg_likelihood=-60.145, pred_uncertainty=0.3724]
+AF: [EI_value=0.0008, exploration_weight=0.289, rank_gap=0.0000]
+Outcome: [observed=0.2186, pred_error=-0.0769, regret=0.0066]
+Summary: Iteration 10 emphasized exploitation, guided by EI=0.001 and posterior uncertainty 0.372. The GP expected 0.296 but observed 0.219, so the prediction error was -0.077. The search did not beat the incumbent with regret 0.007, consistent with a length scale indicating moderately smooth terrain.
+
+Iteration 11:
+State: [best=1.2134, iter=11, n_obs=14, coverage=1.000]
+GP: [length_scale=0.2909, noise=0.0035, marg_likelihood=-56.635, pred_uncertainty=0.3881]
+AF: [EI_value=0.0007, exploration_weight=0.282, rank_gap=0.0001]
+Outcome: [observed=0.2401, pred_error=0.0142, regret=0.0066]
+Summary: Iteration 11 emphasized exploitation, guided by EI=0.001 and posterior uncertainty 0.388. The GP expected 0.226 but observed 0.240, so the prediction error was 0.014. The search did not beat the incumbent with regret 0.007, consistent with a length scale indicating moderately smooth terrain.
+
+Iteration 12:
+State: [best=1.2134, iter=12, n_obs=15, coverage=1.000]
+GP: [length_scale=0.2949, noise=0.0035, marg_likelihood=-53.633, pred_uncertainty=0.0156]
+AF: [EI_value=0.0006, exploration_weight=0.415, rank_gap=0.0000]
+Outcome: [observed=1.1964, pred_error=0.0050, regret=0.0066]
+Summary: Iteration 12 emphasized exploitation, guided by EI=0.001 and posterior uncertainty 0.016. The GP expected 1.191 but observed 1.196, so the prediction error was 0.005. The search did not beat the incumbent with regret 0.007, consistent with a length scale indicating moderately smooth terrain.
+
+Iteration 13:
+State: [best=1.2134, iter=13, n_obs=16, coverage=1.000]
+GP: [length_scale=0.2964, noise=0.0026, marg_likelihood=-77.596, pred_uncertainty=0.0117]
+AF: [EI_value=0.0002, exploration_weight=0.373, rank_gap=0.0001]
+Outcome: [observed=1.1966, pred_error=0.0029, regret=0.0066]
+Summary: Iteration 13 emphasized exploitation, guided by EI=0.000 and posterior uncertainty 0.012. The GP expected 1.194 but observed 1.197, so the prediction error was 0.003. The search did not beat the incumbent with regret 0.007, consistent with a length scale indicating moderately smooth terrain.
+
+Iteration 14:
+State: [best=1.2134, iter=14, n_obs=17, coverage=1.000]
+GP: [length_scale=0.2964, noise=0.0019, marg_likelihood=-110.049, pred_uncertainty=0.0092]
+AF: [EI_value=0.0001, exploration_weight=0.331, rank_gap=0.0000]
+Outcome: [observed=1.1958, pred_error=0.0011, regret=0.0066]
+Summary: Iteration 14 emphasized exploitation, guided by EI=0.000 and posterior uncertainty 0.009. The GP expected 1.195 but observed 1.196, so the prediction error was 0.001. The search did not beat the incumbent with regret 0.007, consistent with a length scale indicating moderately smooth terrain.
+
+Iteration 15:
+State: [best=1.2134, iter=15, n_obs=18, coverage=1.000]
+GP: [length_scale=0.2951, noise=0.0014, marg_likelihood=-153.100, pred_uncertainty=0.0078]
+AF: [EI_value=0.0000, exploration_weight=0.289, rank_gap=0.0000]
+Outcome: [observed=1.1925, pred_error=-0.0016, regret=0.0066]
+Summary: Iteration 15 emphasized exploitation, guided by EI=0.000 and posterior uncertainty 0.008. The GP expected 1.194 but observed 1.193, so the prediction error was -0.002. The search did not beat the incumbent with regret 0.007, consistent with a length scale indicating moderately smooth terrain.
+
+Iteration 16:
+State: [best=1.2134, iter=16, n_obs=19, coverage=1.000]
+GP: [length_scale=0.2928, noise=0.0011, marg_likelihood=-207.561, pred_uncertainty=0.3178]
+AF: [EI_value=0.0001, exploration_weight=0.238, rank_gap=0.0000]
+Outcome: [observed=0.1076, pred_error=-0.0899, regret=0.0066]
+Summary: Iteration 16 emphasized exploitation, guided by EI=0.000 and posterior uncertainty 0.318. The GP expected 0.197 but observed 0.108, so the prediction error was -0.090. The search did not beat the incumbent with regret 0.007, consistent with a length scale indicating moderately smooth terrain.
+
+Iteration 17:
+State: [best=1.2134, iter=17, n_obs=20, coverage=1.000]
+GP: [length_scale=0.3092, noise=0.0011, marg_likelihood=-187.669, pred_uncertainty=0.0110]
+AF: [EI_value=0.0000, exploration_weight=0.221, rank_gap=0.0000]
+Outcome: [observed=1.1467, pred_error=-0.0280, regret=0.0066]
+Summary: Iteration 17 emphasized exploitation, guided by EI=0.000 and posterior uncertainty 0.011. The GP expected 1.175 but observed 1.147, so the prediction error was -0.028. The search did not beat the incumbent with regret 0.007, consistent with a length scale indicating a smooth landscape.
+
+Iteration 18:
+State: [best=1.2195, iter=18, n_obs=21, coverage=1.000]
+GP: [length_scale=0.2953, noise=0.0012, marg_likelihood=-181.106, pred_uncertainty=0.0095]
+AF: [EI_value=0.0000, exploration_weight=0.270, rank_gap=0.0000]
+Outcome: [observed=1.2195, pred_error=0.0318, regret=0.0005]
+Summary: Iteration 18 emphasized exploitation, guided by EI=0.000 and posterior uncertainty 0.009. The GP expected 1.188 but observed 1.220, so the prediction error was 0.032. The search set a new best value with regret 0.000, consistent with a length scale indicating moderately smooth terrain.
+
+Iteration 19:
+State: [best=1.2195, iter=19, n_obs=22, coverage=1.000]
+GP: [length_scale=0.2530, noise=0.0004, marg_likelihood=-594.464, pred_uncertainty=0.0124]
+AF: [EI_value=0.0040, exploration_weight=0.857, rank_gap=0.0026]
+Outcome: [observed=1.2129, pred_error=-0.0046, regret=0.0005]
+Summary: Iteration 19 emphasized exploration, guided by EI=0.004 and posterior uncertainty 0.012. The GP expected 1.217 but observed 1.213, so the prediction error was -0.005. The search did not beat the incumbent with regret 0.000, consistent with a length scale indicating moderately smooth terrain.
+
+Iteration 20:
+State: [best=1.2195, iter=20, n_obs=23, coverage=1.000]
+GP: [length_scale=0.2544, noise=0.0003, marg_likelihood=-738.962, pred_uncertainty=0.0054]
+AF: [EI_value=0.0009, exploration_weight=0.630, rank_gap=0.0000]
+Outcome: [observed=1.2175, pred_error=0.0011, regret=0.0005]
+Summary: Iteration 20 emphasized exploration, guided by EI=0.001 and posterior uncertainty 0.005. The GP expected 1.216 but observed 1.217, so the prediction error was 0.001. The search did not beat the incumbent with regret 0.000, consistent with a length scale indicating moderately smooth terrain.
+

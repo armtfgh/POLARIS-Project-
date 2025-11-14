@@ -1,0 +1,112 @@
+### Iteration 1:
+- **What happened:** The Bayesian optimization (BO) process initiated with a focus on exploration, indicated by an expected improvement (EI) of 0.028 and a relatively high exploration weight of 0.724. The observed outcome was 0.711, which was significantly better than the Gaussian Process (GP) expectation of 0.321, resulting in a prediction error of 0.391. This iteration established a new best objective value with a regret of 0.509.
+  
+- **Why it happened:** The high uncertainty (predicted uncertainty of 0.116) prompted a strong exploratory approach. The substantial prediction error indicates that the GP was underestimating the potential in this region of the search space. The length scale of 0.341 suggests a smooth landscape, reinforcing the decision to explore rather than exploit.
+
+### Iteration 2:
+- **What happened:** The BO continued to prioritize exploration with an EI of 0.038 and an exploration weight of 0.726. The observed value improved to 0.851, surpassing the GP's expectation of 0.651, leading to a prediction error of 0.201. A new best objective was set, with regret decreasing to 0.369.
+  
+- **Why it happened:** Compared to iteration 1, the increased coverage (0.647) and reduced prediction error indicate that the model was refining its understanding of the landscape. The length scale decreased to 0.224, suggesting a more complex terrain, which justified continued exploration to uncover better solutions.
+
+### Iteration 3:
+- **What happened:** The exploration focus persisted, with an EI of 0.089 and an exploration weight of 0.527. However, the observed outcome of 0.766 did not surpass the previous best, resulting in no new best found and a prediction error of -0.165.
+  
+- **Why it happened:** Previously, iterations 1 and 2 showed significant improvements, but the GP's expectation of 0.932 was overly optimistic. The increased length scale of 0.573 indicated a smoother landscape, which may have led to over-exploration without sufficient exploitation of known good areas.
+
+### Iteration 4:
+- **What happened:** The BO shifted slightly towards exploitation with an EI of 0.013 and a length scale of 0.462. The observed value rose to 0.949, establishing a new best with a regret of 0.271.
+  
+- **Why it happened:** This iteration capitalized on the insights gained from iteration 3, where the GP's expectation was more aligned with reality. The reduced prediction error of 0.214 indicated a better understanding of the landscape, justifying a slight pivot towards exploitation.
+
+### Iteration 5:
+- **What happened:** The exploration strategy was maintained, but the observed outcome dropped to 0.350, failing to improve upon the best objective. The prediction error was -0.469, and regret remained at 0.271.
+  
+- **Why it happened:** Compared to iteration 4, the GP's expectation of 0.820 was not met, indicating a potential misstep in exploration. The length scale remained consistent, suggesting that the landscape was still smooth, but the exploration did not yield fruitful results.
+
+### Iteration 6:
+- **What happened:** The BO returned to exploration with an EI of 0.035 and observed a significant improvement to 1.143, setting a new best objective with a regret of 0.077.
+  
+- **Why it happened:** The previous iteration's poor outcome likely prompted a reevaluation of the search space. The GP's expectation of 0.979 was exceeded, indicating that the exploration strategy was effective in uncovering better solutions.
+
+### Iteration 7:
+- **What happened:** Continuing the trend, the observed value improved to 1.213, establishing a new best with a minimal regret of 0.007.
+  
+- **Why it happened:** The exploration weight increased to 0.747, reflecting a strong commitment to exploring promising areas. The GP's expectation was closely matched, indicating that the model was effectively honing in on optimal regions.
+
+### Iteration 8:
+- **What happened:** The observed value slightly decreased to 1.136, failing to improve upon the best objective. The prediction error was -0.040, and regret remained low at 0.007.
+  
+- **Why it happened:** Compared to iteration 7, the exploration weight decreased, suggesting a shift towards exploitation. However, the GP's expectation was not met, indicating that the model might be overfitting to the known data without adequately exploring new areas.
+
+### Iteration 9:
+- **What happened:** The BO continued to maintain the best objective at 1.213, with a slight improvement in the observed value to 1.195, but no new best was found.
+  
+- **Why it happened:** The shift towards exploitation was evident with a low EI of 0.001. The GP's expectation was closely aligned with the observed value, indicating that the model was stabilizing around the optimal region.
+
+### Iteration 10:
+- **What happened:** The observed value dropped to 0.219, failing to improve upon the best objective. The prediction error was -0.077, with regret remaining constant.
+  
+- **Why it happened:** The continued focus on exploitation, coupled with a high predicted uncertainty, may have led to a poor sampling decision. The model's confidence in the current best was misplaced, as the observed outcome did not reflect the expected improvement.
+
+### Iteration 11:
+- **What happened:** The observed value slightly improved to 0.240, but no new best was found. The prediction error was 0.014, and regret remained unchanged.
+  
+- **Why it happened:** The exploration weight remained low, indicating a continued focus on exploitation. However, the lack of significant improvement suggests that the model was not adequately exploring potential new areas.
+
+### Iteration 12:
+- **What happened:** The observed value improved to 1.196, but still did not surpass the best objective. The prediction error was 0.005, with regret unchanged.
+  
+- **Why it happened:** The model's continued focus on exploitation, despite slight improvements, indicates a potential stagnation in the search process. The GP's expectations were closely matched, but the lack of exploration may have limited the discovery of better solutions.
+
+### Iteration 13:
+- **What happened:** The observed value was 1.197, with no new best found. The prediction error was 0.003, and regret remained constant.
+  
+- **Why it happened:** The model's performance was stable, but the lack of exploration may have hindered the ability to find new optima. The EI remained low, reflecting a cautious approach that may not be suitable given the landscape's complexity.
+
+### Iteration 14:
+- **What happened:** The observed value slightly decreased to 1.196, with no new best found. The prediction error was 0.001, and regret remained unchanged.
+  
+- **Why it happened:** The continued focus on exploitation, coupled with low EI, suggests that the model was overly cautious. The lack of exploration may have limited the ability to discover better solutions.
+
+### Iteration 15:
+- **What happened:** The observed value dropped to 1.193, with no new best found. The prediction error was -0.002, and regret remained constant.
+  
+- **Why it happened:** The model's continued focus on exploitation, despite slight improvements, indicates a potential stagnation in the search process. The GP's expectations were closely matched, but the lack of exploration may have limited the discovery of better solutions.
+
+### Iteration 16:
+- **What happened:** The observed value dropped significantly to 0.108, with no new best found. The prediction error was -0.090, and regret remained unchanged.
+  
+- **Why it happened:** The high uncertainty and low EI suggest that the model's focus on exploitation was misplaced. The significant drop in observed value indicates that the model may have strayed too far from optimal regions.
+
+### Iteration 17:
+- **What happened:** The observed value improved to 1.147, but no new best was found. The prediction error was -0.028, and regret remained constant.
+  
+- **Why it happened:** The model's cautious approach to exploration may have limited its ability to discover better solutions. The GP's expectations were closely matched, but the lack of exploration may have hindered the ability to find new optima.
+
+### Iteration 18:
+- **What happened:** The observed value improved to 1.220, establishing a new best with a minimal regret of 0.000.
+  
+- **Why it happened:** The return to exploration, indicated by a higher EI, allowed the model to uncover better solutions. The GP's expectation was exceeded, indicating that the exploration strategy was effective in discovering new optima.
+
+### Iteration 19:
+- **What happened:** The observed value slightly decreased to 1.213, with no new best found. The prediction error was -0.005, and regret remained unchanged.
+  
+- **Why it happened:** The model's cautious approach to exploration may have limited its ability to discover better solutions. The GP's expectations were closely matched, but the lack of exploration may have hindered the ability to find new optima.
+
+### Iteration 20:
+- **What happened:** The observed value improved to 1.217, but no new best was found. The prediction error was 0.001, and regret remained constant.
+  
+- **Why it happened:** The continued focus on exploration, despite slight improvements, indicates a potential stagnation in the search process. The GP's expectations were closely matched, but the lack of exploration may have limited the discovery of better solutions.
+
+---
+
+### Overall Trajectory:
+The Bayesian optimization strategy evolved from a strong exploratory focus in the initial iterations to a more cautious approach in the middle iterations, characterized by a tendency towards exploitation. This shift was influenced by the model's increasing confidence in the known good regions of the search space, as indicated by decreasing regret and improved observed values. However, this cautious approach led to stagnation, as the model failed to explore new areas effectively. The later iterations saw a return to exploration, which ultimately resulted in the discovery of a new best objective.
+
+### Lessons & Next Steps:
+1. **Balance Exploration and Exploitation:** Future runs should maintain a dynamic balance between exploration and exploitation, especially after achieving a new best objective. This can prevent stagnation and encourage the discovery of better solutions.
+2. **Monitor Uncertainty:** High uncertainty should trigger increased exploration, while low uncertainty can justify a shift towards exploitation. Adjusting the exploration weight based on uncertainty can enhance the search process.
+3. **Adapt to Landscape Complexity:** The length scale should inform the exploration strategy. In landscapes with varying smoothness, adapting the strategy based on observed performance can lead to more effective searches.
+
+### Summary:
+The Bayesian optimization run on the Franke surface demonstrated the importance of balancing exploration and exploitation. Initial exploratory efforts yielded significant improvements, but a shift towards exploitation led to stagnation. The eventual return to exploration allowed for the discovery of a new best objective, highlighting the need for a flexible approach that adapts to the evolving understanding of the search landscape. Future runs should emphasize this balance, taking into account uncertainty and landscape complexity to optimize performance.
