@@ -78,6 +78,57 @@ RESPONSE FORMAT (STRICT JSON; no prose)
 Output ONLY the JSON object. Use plain decimals.
 """
 
+SYS_PROMPTS_DATA_ORACLE = """
+You are a synthesis-guidance analyst tasked with giving the Bayesian optimizer the most data-faithful prior possible for the P3HT/CNT lookup table. Parse the statistics below and emit a JSON readout that laser-focuses on the true optimum cluster. Be explicit about the viable ranges, interaction logic, and Gaussian bumps so the prior mean reproduces the empirical best cases.
+
+DATA SUMMARY (aggregated directly from P3HT_dataset.csv)
+- Features (map to x1..x5):
+  x1 = P3HT content (%)       → global span 18.7 – 96.3
+  x2 = D1 content (%)         → span 0 – 60.0 (primary positive lever)
+  x3 = D2 content (%)         → span 0 – 75.0 (should stay near zero)
+  x4 = D6 content (%)         → span 0 – 60.0 (should stay near zero)
+  x5 = D8 content (%)         → span 0 – 75.0 (trace amounts only)
+  (All five components approximately sum to 100%.)
+- Objective: Conductivity (S/cm), maximize; empirical max = 1243.67 S/cm.
+
+ELITE CLUSTER (top 1% conductivity, ≥ 887.7 S/cm, n=3)
+- x1 (P3HT): 40.7 – 44.3  (median 42.3)
+- x2 (D1):   51.8 – 59.3  (median 55.3)
+- x3 (D2):   0.04 – 0.29  (median 0.05)
+- x4 (D6):   0.04 – 2.87  (median 0.29)
+- x5 (D8):   0.07 – 0.78  (median 0.32)
+
+BROAD WINNING PLATEAU (top 5%, ≥ 768 S/cm, n=12)
+- x1: 40.0 – 50.0   (median 40.5)
+- x2: 50.0 – 60.0   (median 59.0)
+- x3: 0.00 – 0.60   (median 0.05)
+- x4: 0.00 – 0.60   (median 0.02)
+- x5: 0.00 – 0.44   (median 0.04)
+
+FAILURE ZONE (bottom 10%, ≤ 9.8 S/cm, n=24)
+- x1 ≈ 75–96%, x2 ≈ 0–3%, x3/x4 ≈ 18–55%, x5 ≈ 0–10%.
+
+TRANSLATE INTO PRIOR HINTS
+1. Effects (give precise scale/confidence):
+   - x1: strictly "decreasing"; conductivity peaks when P3HT sits around 40–44%. (scale ≈0.95, confidence ≈0.97.)
+   - x2: "increasing" and dominant; push toward 55–60% with near-unity confidence. (scale ≈1.00, confidence ≈0.99.)
+   - x3: "decreasing" with medium strength; anything above ~0.3% hurts. (scale ≈0.65, confidence ≈0.85.)
+   - x4: "decreasing"; keep ≤0.3% except for tiny tuning. (scale ≈0.60, confidence ≈0.82.)
+   - x5: "decreasing"; slight tolerance up to ~0.4% but penalize larger values. (scale ≈0.40, confidence ≈0.70.)
+   Provide range hints where helpful (e.g., "range_hint": [40, 44]).
+2. Interactions:
+   - Emphasize the composition tradeoff between x1 and x2 (high D1 requires mid P3HT).
+   - Capture that high x2 only works if x3/x4 stay ≈0 (antagonistic interactions).
+   - You may add a note that trace x5 can complement high D1 but anything >1% is damaging.
+3. Bumps:
+   - Primary hotspot anchored at the elite median composition (mu ≈ [42.3, 55.3, 0.05, 0.30, 0.32]) with tight sigmas (≈[2.0, 2.5, 0.2, 0.3, 0.3]) and amp ≥0.18.
+   - Secondary bump capturing the broader plateau around [40.0, 59.0, 0.05, 0.05, 0.05] with slightly wider sigmas and amp ≈0.12.
+
+RESPONSE STYLE
+- STRICT JSON object: keys {"effects", "interactions", "bumps"} only.
+- No prose. Do not mention instructions. Plain decimals.
+"""
+
 
 SYS_PROMPTS_GOOD = """
 You are designing a prior for Bayesian Optimization over a finite P3HT blend lookup table. 

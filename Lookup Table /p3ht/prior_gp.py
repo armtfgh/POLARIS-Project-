@@ -20,6 +20,7 @@ class Prior:
     effects: Dict[str, Dict[str, Any]]
     interactions: List[Dict[str, Any]]
     bumps: List[Dict[str, Any]]
+    scale: float = 1.0
 
     def m0_torch(self, X: Tensor) -> Tensor:
         """Evaluate the prior mean m0(X) for normalized inputs X in [0,1]^d."""
@@ -129,7 +130,7 @@ class Prior:
             gauss = torch.exp(-0.5 * torch.sum(diff ** 2, dim=-1))
             out = out + amp * gauss
 
-        return out
+        return self.scale * out
 
 from botorch.models.model import Model
 from botorch.models import SingleTaskGP

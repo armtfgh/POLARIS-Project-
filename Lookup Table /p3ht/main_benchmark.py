@@ -42,7 +42,7 @@ from __future__ import annotations
 import warnings
 warnings.filterwarnings('ignore')
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Dict, Any, List, Optional, Tuple, Union, Sequence
 
 import os, json, hashlib
@@ -80,6 +80,7 @@ torch.set_default_dtype(DTYPE)
 # -------------------- Prior / residual machinery --------------------
 from prior_gp import alignment_on_obs, fit_residual_gp, GPWithPriorMean, Prior
 from readout_schema import readout_to_prior, flat_readout
+from visualization import plot_runs_mean_lookup
 
 # (Prompts are optional; only used if readout_source="llm")
 #%%
@@ -90,6 +91,7 @@ from bo_readout_prompts import (
     SYS_PROMPTS_RANDOM,
     SYS_PROMPTS_BAD,
     SYS_PROMPT_MINIMAL_HUMAN,
+    SYS_PROMPTS_DATA_ORACLE,
 )
 
 PROMPT_LIBRARY = {
@@ -99,6 +101,7 @@ PROMPT_LIBRARY = {
     "minimal": SYS_PROMPT_MINIMAL_HUMAN,
     "random": SYS_PROMPTS_RANDOM,
     "bad": SYS_PROMPTS_BAD,
+    "data_oracle": SYS_PROMPTS_DATA_ORACLE,
 }
 
 #%%
@@ -583,7 +586,13 @@ def _build_initial_from_indices(lookup, idxs: List[int], method_tag: str) -> tup
 #                     SUMMARIES FOR (OPTIONAL) LLM READOUT
 # ====================================================================
 
-def summarize_on_pool_for_llm(gp: SingleTaskGP, X_obs: Tensor, Y_obs: Tensor, X_pool: Tensor, topk: int = 12) -> Dict[str, Any]:
+def summarize_on_pool_for_llm(
+        gp: SingleTaskGP,
+        X_obs: Tensor,
+        Y_obs: Tensor,
+        X_pool: Tensor,
+        lookup: LookupTable,
+        topk: int = 12) -> Dict[str, Any]:
     """Summarize model state on a discrete pool for prompting.
     Handles Y_obs shaped (n,) or (n,1). Returns top EI / top variance points and incumbent.
     """
@@ -599,19 +608,26 @@ def summarize_on_pool_for_llm(gp: SingleTaskGP, X_obs: Tensor, Y_obs: Tensor, X_
         idx_ei = torch.topk(ei_vals, k=k).indices if k > 0 else torch.tensor([], dtype=torch.long)
         idx_var = torch.topk(var, k=k).indices if k > 0 else torch.tensor([], dtype=torch.long)
 
+        mins = lookup.mins.to(device=X_obs.device, dtype=X_obs.dtype)
+        rng = (lookup.maxs - lookup.mins).to(device=X_obs.device, dtype=X_obs.dtype).clamp_min(1e-12)
+
+        def _denorm(x: Tensor) -> List[float]:
+            raw = mins + x * rng
+            return [float(v) for v in raw.detach().cpu().tolist()]
+
         def pack(idx):
             out = []
             for i in idx:
-                xi = X_pool[int(i)].detach().cpu().tolist()
-                out.append({"x": [float(v) for v in xi], "score": float(ei_vals[int(i)].item())})
+                xi = X_pool[int(i)]
+                out.append({"x": _denorm(xi), "score": float(ei_vals[int(i)].item())})
             return out
 
         inc_i = int(torch.argmax(Y_flat))
-        inc = {"x": X_obs[inc_i].detach().cpu().tolist(), "y": float(Y_flat[inc_i].item())}
+        inc = {"x": _denorm(X_obs[inc_i]), "y": float(Y_flat[inc_i].item())}
 
         return {"best_so_far": best_f, "incumbent": inc,
                 "top_ei": pack(idx_ei),
-                "top_var": [{"x": X_pool[int(i)].detach().cpu().tolist(), "var": float(var[int(i)].item())} for i in idx_var],}
+                "top_var": [{"x": _denorm(X_pool[int(i)]), "var": float(var[int(i)].item())} for i in idx_var],}
 
 # ---- Readout dimension sanitizer ----------------------------------
 
@@ -625,58 +641,77 @@ def _coerce_list_len(vals, d, fill=0.5):
         return [float(v) for v in (vals + [fill] * (d - len(vals)))]
 
 
-def sanitize_readout_dim(readout: Dict[str, Any], d: int) -> Dict[str, Any]:
-    """Coerce readout JSON to match feature dimension d.
-    - Bumps: pad/truncate mu to length d; sigma scalar ok or list padded/truncated to d; keep amp as float.
-    - Effects: keep only keys x1..xd.
-    - Interactions: drop entries that refer to out-of-range dims when integer indices are provided.
-    """
+def sanitize_readout_dim(
+    readout: Dict[str, Any],
+    d: int,
+    feature_names: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Coerce readout JSON to match feature dimension d and leverage feature names."""
     if readout is None:
         return {"effects": {}, "interactions": [], "bumps": []}
     ro = {**readout}
 
-    # bumps
+    def _canonical_feature(name: Any) -> Optional[str]:
+        if isinstance(name, str):
+            key = name.strip()
+            if key.lower().startswith("x") and key[1:].isdigit():
+                idx = int(key[1:])
+                if 1 <= idx <= d:
+                    return f"x{idx}"
+        elif isinstance(name, int) and 1 <= name <= d:
+            return f"x{name}"
+        key_lower = str(name).strip().lower()
+        if feature_names:
+            for j, fname in enumerate(feature_names, start=1):
+                if fname.lower() == key_lower and 1 <= j <= d:
+                    return f"x{j}"
+        return None
+
     bumps_in = ro.get("bumps", []) or []
     bumps_out = []
     for b in bumps_in:
-        
         mu = _coerce_list_len(b.get("mu", [0.5] * d), d, fill=0.5)
         sigma = b.get("sigma", 0.15)
         if isinstance(sigma, (list, tuple)):
             sigma = _coerce_list_len(sigma, d, fill=(sigma[-1] if len(sigma) else 0.15))
         amp = float(b.get("amp", 0.1))
         bumps_out.append({"mu": mu, "sigma": sigma, "amp": amp})
-
     ro["bumps"] = bumps_out
 
-    # effects: keep only x1..xd
     eff_in = ro.get("effects", {}) or {}
     eff_out = {}
     for k, v in eff_in.items():
-        if isinstance(k, str) and k.startswith("x"):
-            
-            j = int(k[1:])
-            if 1 <= j <= d:
-                eff_out[k] = v
-
+        canonical = _canonical_feature(k)
+        if canonical is not None:
+            eff_out[canonical] = v
     ro["effects"] = eff_out
 
-    # interactions: conservative filter
     inter_in = ro.get("interactions", []) or []
     inter_out = []
     for it in inter_in:
+        if not isinstance(it, dict):
+            continue
         keep = True
         pair = it.get("pair") or it.get("vars") or it.get("indices")
+        if isinstance(pair, str):
+            pair = [pair]
         if isinstance(pair, (list, tuple)) and len(pair) == 2:
-            a, b = pair
-            if (isinstance(a, int) and a > d) or (isinstance(b, int) and b > d):
+            canon_pair: List[str] = []
+            for val in pair:
+                canonical = _canonical_feature(val)
+                if canonical is None:
+                    canon_pair = []
+                    break
+                canon_pair.append(canonical)
+            if len(canon_pair) != 2:
                 keep = False
+            else:
+                it = dict(it)
+                it["vars"] = canon_pair
         if keep:
             inter_out.append(it)
     ro["interactions"] = inter_out
     return ro
-
-
 def _normalize_readout_to_unit_box(readout: Dict[str, Any], mins: Tensor, maxs: Tensor) -> Dict[str, Any]:
     """
     Take raw-scale readout JSON (mu/sigma in original units) and convert to unit-box coordinates.
@@ -732,11 +767,11 @@ def _normalize_readout_to_unit_box(readout: Dict[str, Any], mins: Tensor, maxs: 
 # -------------------- Prompt + LLM readout -------------------------
 
 def llm_generate_readout(history_df: Optional[pd.DataFrame], gp_ctx: SingleTaskGP, X_obs: Tensor, Y_obs: Tensor,
-                          X_pool: Tensor, sys_prompt: str,
+                          X_pool: Tensor, lookup: LookupTable, sys_prompt: str,
                           temperature: float = 0.2, model: str = "gpt-4o-mini") -> Dict[str, Any]:
     if _OPENAI_CLIENT is None:
         return {"effects": {}, "interactions": [], "bumps": []}  # fallback: flat
-    ctx = summarize_on_pool_for_llm(gp_ctx, X_obs, Y_obs, X_pool)
+    ctx = summarize_on_pool_for_llm(gp_ctx, X_obs, Y_obs, X_pool, lookup)
     recent = history_df.tail(30).to_dict(orient="records") if (history_df is not None and not history_df.empty) else []
 
     messages = [
@@ -869,7 +904,7 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
 
     # --- initial prior selection ---
     if custom_readout is not None:
-        ro0_sane = sanitize_readout_dim(custom_readout, lookup.d)
+        ro0_sane = sanitize_readout_dim(custom_readout, lookup.d, feature_names=lookup.feature_names)
         ro0_sane = force_scalar_sigma(ro0_sane)
         if custom_readout_is_normalized:
             ro0 = ro0_sane
@@ -883,15 +918,17 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
         fit_gpytorch_mll(mll)
         rem0 = remaining_indices(N, seen)
         X_pool0 = lookup.X[rem0] if rem0 else torch.empty((0, lookup.d), device=DEVICE, dtype=DTYPE)
-        ro0_raw = llm_generate_readout(pd.DataFrame(rec), gp_ctx, X_obs, Y_obs2, X_pool0, sys_prompt=prompt_text, model=model)
-        ro0_sane = sanitize_readout_dim(ro0_raw, lookup.d)
+        ro0_raw = llm_generate_readout(pd.DataFrame(rec), gp_ctx, X_obs, Y_obs2, X_pool0, lookup,
+                                       sys_prompt=prompt_text, model=model)
+        ro0_sane = sanitize_readout_dim(ro0_raw, lookup.d, feature_names=lookup.feature_names)
         ro0_sane = force_scalar_sigma(ro0_sane)
         ro0 = _normalize_readout_to_unit_box(ro0_sane, lookup.mins, lookup.maxs)
     else:
         ro0 = flat_readout()
-    prior = readout_to_prior(ro0)
+    prior_base = readout_to_prior(ro0)
     prior_fade = float(max(0.0, min(1.0, prior_fade)))
     m0_w = 1.0
+    prior = replace(prior_base, scale=m0_w)
 
     status_log: List[Dict[str, Any]] = []
     if log_json_path is not None and readout_source == "llm":
@@ -992,6 +1029,7 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
         rec.append(row)
 
         m0_w *= prior_fade
+        prior = replace(prior_base, scale=m0_w)
 
     if log_json_path is not None and readout_source == "llm":
         dirpath = os.path.dirname(log_json_path)
@@ -1150,367 +1188,25 @@ def compare_methods_from_csv(lookup: LookupTable, n_init: int = 6, n_iter: int =
         out.attrs["prior_debug_runs"] = hybrid_debug
     return out
 
-# ====================================================================
-#                          COMPARISON WRAPPER
-# ====================================================================
 
-
-
-# ====================================================================
-#                              PLOTTING
-# ====================================================================
-
-def _format_method_label(method: str) -> str:
-    if method.startswith("hybrid_rho_"):
-        tail = method[len("hybrid_rho_"):]
-        fade_part = None
-        if "_fade_" in tail:
-            tail, fade_part = tail.split("_fade_", 1)
-        try:
-            rho_val = float(tail)
-            rho_label = rf"$\rho = {rho_val:+.2f}$"
-        except ValueError:
-            rho_label = rf"$\rho = {tail}$"
-        if fade_part is not None:
-            try:
-                fade_val = float(fade_part)
-                return f"{rho_label}, fade={fade_val:.2f}"
-            except ValueError:
-                return f"{rho_label}, fade={fade_part}"
-        return rho_label
-    return method
-
-
-def plot_runs_mean_lookup(hist_df: pd.DataFrame, *, methods: Optional[List[str]] = None,
-                          ci: str = "sd", ax: Optional[plt.Axes] = None,
-                          title: Optional[str] = None,
-                          xlabel: str = "Iteration",
-                          ylabel: str = "Best so far",
-                          legend_title: Optional[str] = None) -> plt.Axes:
-    """Plot mean best-so-far vs iteration across seeds with a shaded uncertainty band.
-
-    Args:
-        hist_df: long-form DataFrame from compare_methods_from_csv (must contain columns: method, iter, best_so_far, seed).
-        methods: subset of method names to plot (default: all in hist_df).
-        ci: "sd" (±1 std), "sem" (±1 std/sqrt(n)), or "95ci" (±1.96*std/sqrt(n)).
-        ax: optional matplotlib Axes.
-        title: optional plot title.
-    """
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(6.5, 4.0))
-
-    df = hist_df.copy()
-    df = df[df["iter"] >= 0]  # plot only acquisition iterations
-
-    if methods is None:
-        methods = list(df["method"].unique())
-
-    legend_handles = []
-    legend_labels = []
-    for m in methods:
-        d = df[df["method"] == m]
-        if d.empty:
-            continue
-        agg = d.groupby("iter")["best_so_far"].agg(["mean", "std", "count"]).reset_index()
-        if ci == "sem":
-            err = agg["std"] / np.maximum(agg["count"], 1).pow(0.5)
-        elif ci == "95ci":
-            err = 1.96 * agg["std"] / np.maximum(agg["count"], 1).pow(0.5)
-        else:  # "sd"
-            err = agg["std"]
-        x = agg["iter"].to_numpy()
-        y = agg["mean"].to_numpy()
-        e = err.to_numpy()
-        line, = ax.plot(x, y, linewidth=2.0)
-        ax.fill_between(x, y - e, y + e, alpha=0.18, color=line.get_color())
-        legend_handles.append(line)
-        legend_labels.append(_format_method_label(m))
-
-    ax.set_xlabel(xlabel, fontsize=12)
-    ax.set_ylabel(ylabel, fontsize=12)
-    if title:
-        ax.set_title(title, fontsize=13)
-    ax.tick_params(axis='both', labelsize=11)
-    ax.set_facecolor("white")
-    if ax.figure:
-        ax.figure.patch.set_facecolor("white")
-    if legend_handles:
-        ax.legend(legend_handles, legend_labels, frameon=False, title=legend_title,
-                  fontsize=11, title_fontsize=11, loc="best")
-    plt.tight_layout()
-    return ax
-
-
-def benchmark_alignment_priors(
-        lookup: LookupTable,
-        target_alignments: Union[float, str, Sequence[Union[float, str]]],
-        *,
-        n_init: int = 6,
-        n_iter: int = 25,
-        seed: int = 0,
-        repeats: int = 1,
-        init_method: str = "random",
-        generator_kwargs: Optional[Dict[str, Any]] = None,
-        diagnose_prior: bool = False,
-        plot: bool = True,
-        ci: str = "sd",
-        ax: Optional[plt.Axes] = None,
-        prior_fade: float = 1.0,
-) -> Tuple[pd.DataFrame, Optional[plt.Axes]]:
-    """
-    Run hybrid BO with synthetic readouts that target specific alignment values, optionally plotting the outcomes.
-
-    Args:
-        lookup: LookupTable dataset.
-        target_alignments: single rho target or a list of targets (floats or named levels like "high").
-        n_init / n_iter / seed / repeats / init_method: standard BO controls.
-        generator_kwargs: dict with optional overrides for template construction
-            (`n_signal_support`, `n_noise_support`, `signal_sigma`, `noise_sigma`;
-             aliases `n_signal`/`n_noise` are accepted)
-            and for the alignment grid search (`scale_sig_max`, `scale_noise_max`, `scale_sig_steps`, `scale_noise_steps`).
-        diagnose_prior: forwards to the hybrid runner to capture diagnostics.
-        prior_fade: exponential decay factor applied to the prior mean weight after each iteration.
-        plot: when True, call plot_runs_mean_lookup on the resulting history.
-        ci / ax: plotting controls (ignored if plot=False).
-
-    Returns:
-        (history_df, ax_or_none)
-    """
-    targets = _resolve_targets(target_alignments)
-
-    template_kwargs: Dict[str, Any] = {}
-    scale_kwargs: Dict[str, Any] = {}
-    alias_map = {
-        "n_signal": "n_signal_support",
-        "n_noise": "n_noise_support",
-    }
-    if generator_kwargs:
-        template_keys = {"n_signal_support", "n_noise_support", "signal_sigma", "noise_sigma"}
-        scale_keys = {"scale_sig_max", "scale_noise_max", "scale_sig_steps", "scale_noise_steps"}
-        for k, v in generator_kwargs.items():
-            key = alias_map.get(k, k)
-            if key in template_keys:
-                template_kwargs[key] = v
-            elif key in scale_keys:
-                scale_kwargs[key] = v
-            else:
-                raise ValueError(
-                    f"Unknown generator_kwargs key '{k}'. Expected template keys {template_keys} or scale keys {scale_keys}."
-                )
-
-    dfs: List[pd.DataFrame] = []
-    method_order: List[str] = []
-    alignment_meta: List[Dict[str, Any]] = []
-    prior_debug_runs: List[Dict[str, Any]] = []
-
-    for idx, target in enumerate(targets):
-        label = _format_alignment_label(target)
-        method_label = f"hybrid_rho_{label}"
-        if method_label not in method_order:
-            method_order.append(method_label)
-        base_seed_offset = _stable_seed_from_target(target) % 1_000_000
-        base_seed = int(seed + base_seed_offset)
-        template_cache_local = build_gp_alignment_template(lookup, **template_kwargs)
-        for r in range(repeats):
-            bo_seed = int(base_seed + r)
-            ro, info = generate_gp_alignment_readout(
-                lookup,
-                target,
-                template_cache=template_cache_local,
-                **scale_kwargs,
-            )
-            dfr = _run_hybrid_lookup_single(
-                lookup,
-                n_init=n_init,
-                n_iter=n_iter,
-                seed=bo_seed,
-                init_method=init_method,
-                readout_source="custom",
-                pool_base=None,
-                debug_llm=False,
-                model="",
-                log_json_path=None,
-                diagnose_prior=diagnose_prior,
-                prompt_profile="perfect",
-                method_tag=method_label,
-                custom_readout=ro,
-                custom_readout_is_normalized=True,
-                prior_fade=prior_fade,
-            )
-            dfr["seed"] = bo_seed
-            dfr["alignment_label"] = label
-            dfr["alignment_target"] = info["target_rho"]
-            dfr["alignment_achieved"] = info["achieved_rho"]
-            dfr["alignment_requested"] = target
-            dfs.append(dfr)
-
-            meta_entry = {
-                "method": method_label,
-                "alignment_label": label,
-                "target_requested": target,
-                "seed": bo_seed,
-                **info,
-            }
-            alignment_meta.append(meta_entry)
-            if diagnose_prior and "prior_debug" in dfr.attrs:
-                prior_debug_runs.append({
-                    "method": method_label,
-                    "seed": bo_seed,
-                    "alignment_label": label,
-                    "prior_debug": dfr.attrs["prior_debug"],
-                })
-
-    if not dfs:
-        raise RuntimeError("No runs were executed; check target_alignments/repeats arguments.")
-
-    hist = pd.concat(dfs, ignore_index=True)
-    if alignment_meta:
-        hist.attrs["alignment_readout_info"] = alignment_meta
-    if prior_debug_runs:
-        hist.attrs["prior_debug_runs"] = prior_debug_runs
-
-    ax_out = None
-    if plot:
-        ax_out = plot_runs_mean_lookup(hist, methods=method_order, ci=ci, ax=ax)
-    return hist, ax_out
-
-
-def benchmark_prior_fade(
-        lookup: LookupTable,
-        *,
-        alignment: Union[float, str] = 0.0,
-        fade_values: Sequence[float] = (0.2, 0.4, 0.6, 0.8, 1.0),
-        n_init: int = 6,
-        n_iter: int = 25,
-        seed: int = 0,
-        repeats: int = 1,
-        init_method: str = "random",
-        generator_kwargs: Optional[Dict[str, Any]] = None,
-        diagnose_prior: bool = False,
-        plot: bool = True,
-        ci: str = "sd",
-        ax: Optional[plt.Axes] = None,
-) -> Tuple[pd.DataFrame, Optional[plt.Axes]]:
-    """
-    Fix a single alignment target and sweep prior_fade values to show how quickly the BO loop recovers from the prior.
-    """
-    fades = [float(max(0.0, min(1.0, f))) for f in fade_values]
-    targets = _resolve_targets([alignment])
-
-    template_kwargs: Dict[str, Any] = {}
-    scale_kwargs: Dict[str, Any] = {}
-    alias_map = {
-        "n_signal": "n_signal_support",
-        "n_noise": "n_noise_support",
-    }
-    if generator_kwargs:
-        template_keys = {"n_signal_support", "n_noise_support", "signal_sigma", "noise_sigma"}
-        scale_keys = {"scale_sig_max", "scale_noise_max", "scale_sig_steps", "scale_noise_steps"}
-        for k, v in generator_kwargs.items():
-            key = alias_map.get(k, k)
-            if key in template_keys:
-                template_kwargs[key] = v
-            elif key in scale_keys:
-                scale_kwargs[key] = v
-            else:
-                raise ValueError(
-                    f"Unknown generator_kwargs key '{k}'. Expected template keys {template_keys} or scale keys {scale_keys}."
-                )
-
-    dfs: List[pd.DataFrame] = []
-    meta: List[Dict[str, Any]] = []
-    target = targets[0]
-    label = _format_alignment_label(target)
-    base_seed = _stable_seed_from_target(target) % 1_000_000 + int(seed)
-    template_cache = build_gp_alignment_template(lookup, **template_kwargs)
-    method_order: List[str] = []
-
-    for fade in fades:
-        method_label = f"hybrid_rho_{label}_fade_{fade:.2f}"
-        method_order.append(method_label)
-        for r in range(repeats):
-            bo_seed = int(base_seed + r)
-            ro, info = generate_gp_alignment_readout(
-                lookup,
-                target,
-                template_cache=template_cache,
-                **scale_kwargs,
-            )
-            dfr = _run_hybrid_lookup_single(
-                lookup,
-                n_init=n_init,
-                n_iter=n_iter,
-                seed=bo_seed,
-                init_method=init_method,
-                readout_source="custom",
-                pool_base=None,
-                debug_llm=False,
-                model="",
-                log_json_path=None,
-                diagnose_prior=diagnose_prior,
-                prompt_profile="perfect",
-                method_tag=method_label,
-                custom_readout=ro,
-                custom_readout_is_normalized=True,
-                prior_fade=fade,
-            )
-            dfr["seed"] = bo_seed
-            dfr["alignment_label"] = label
-            dfr["alignment_target"] = info["target_rho"]
-            dfr["alignment_achieved"] = info["achieved_rho"]
-            dfr["prior_fade"] = fade
-            dfs.append(dfr)
-            meta.append({
-                "method": method_label,
-                "target_requested": target,
-                "alignment_label": label,
-                "prior_fade": fade,
-                "seed": bo_seed,
-                **info,
-            })
-
-    hist = pd.concat(dfs, ignore_index=True)
-    hist.attrs["alignment_readout_info"] = meta
-
-    ax_out = None
-    if plot:
-        legend_title = rf"{_format_method_label(f'hybrid_rho_{label}')}"
-        ax_out = plot_runs_mean_lookup(
-            hist,
-            methods=method_order,
-            ci=ci,
-            ax=ax,
-            xlabel="Iteration",
-            ylabel="Best so far",
-            legend_title=legend_title,
-        )
-    return hist, ax_out
-
-
-lt = load_lookup_csv("P3HT_dataset.csv", impute_features="median")
-
-# hist, ax = benchmark_alignment_priors(
-#     lt,
-#     target_alignments=[0,0.2, 0.4,0.8],
-#     n_init=6,
-#     n_iter=20,
-#     repeats=3,
-#     generator_kwargs={"n_signal": 3, "n_noise": 3},
-#     plot=True,prior_fade=0.2
-# )
-# print(hist.attrs["alignment_readout_info"][0])  # target vs. achieved ρ details
-
-
-hist_fade, ax = benchmark_prior_fade(
-    lt,
-    alignment=0,
-    fade_values=[0, 0.6, 0.8],
-    n_init=6,
-    n_iter=20,
-    repeats=3,
-    generator_kwargs={"n_signal": 3, "n_noise": 3},
-    plot=True,
-)
-
-
+if __name__ == "__main__":
+    lookup = load_lookup_csv("P3HT_dataset.csv", impute_features="median")
+    hist = compare_methods_from_csv(
+        lookup,
+        n_init=3,
+        n_iter=10,
+        seed=325,
+        repeats=3,
+        include_hybrid=True,
+        readout_source="llm",
+        hybrid_prompt_profiles=["data_oracle"],
+        prior_fade=0.8,
+    )
+    plot_runs_mean_lookup(
+        hist,
+        methods=["random", "baseline_ei", "hybrid_data_oracle"],
+        ci="sem",
+        title="Random vs Baseline EI vs Hybrid (Oracle Prompt)",
+    )
+    plt.show()
 #%%

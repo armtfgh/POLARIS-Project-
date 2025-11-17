@@ -27,4 +27,4 @@ def readout_to_prior(ro: Dict[str, Any]) -> Prior:
     effects = ro.get("effects", {})
     inter   = ro.get("interactions", [])
     bumps   = ro.get("bumps", [])
-    return Prior(effects=effects, interactions=inter, bumps=bumps)
+    return Prior(effects=effects, interactions=inter, bumps=bumps, scale=1.0)
