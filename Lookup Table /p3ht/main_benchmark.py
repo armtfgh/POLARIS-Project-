@@ -946,12 +946,113 @@ def plot_runs_mean_lookup(hist_df: pd.DataFrame, *, methods: Optional[List[str]]
     return ax
 
 
+def attach_lookup_truth(hist_df: pd.DataFrame, lookup: LookupTable) -> Tuple[pd.DataFrame, pd.DataFrame, str]:
+    """Attach raw feature values and the lookup-table objective to each BO selection."""
+    feature_cols = list(lookup.feature_names)
+    lookup_df = pd.DataFrame(
+        lookup.X_raw.detach().cpu().numpy(),
+        columns=feature_cols
+    )
+    lookup_df["truth_objective"] = lookup.y.detach().cpu().numpy()
+    lookup_df["idx"] = np.arange(lookup_df.shape[0])
+    merged = hist_df.merge(
+        lookup_df[["idx", "truth_objective", *feature_cols]],
+        on="idx",
+        how="left"
+    )
+    return merged, lookup_df, lookup.objective_name
+
+
+def plot_parameter_violin(hist_truth_df: pd.DataFrame,
+                          lookup_df: pd.DataFrame,
+                          *,
+                          methods: Optional[List[str]] = None,
+                          feature_cols: Optional[List[str]] = None,
+                          truth_col: str = "truth_objective",
+                          objective_label: str = "Objective") -> plt.Figure:
+    """Show how each method's sampled parameters distribute relative to the lookup-table optimum."""
+    if methods is None:
+        methods = sorted(hist_truth_df["method"].unique())
+    if feature_cols is None:
+        feature_cols = [c for c in lookup_df.columns if c not in {"idx", truth_col}]
+    if not feature_cols:
+        raise ValueError("feature_cols must contain at least one feature.")
+
+    best_row = lookup_df.loc[lookup_df[truth_col].idxmax()]
+    fig, axes = plt.subplots(1, len(feature_cols), figsize=(5.0 * len(feature_cols), 4.8), sharey=False)
+    if len(feature_cols) == 1:
+        axes = [axes]
+
+    for ax, feat in zip(axes, feature_cols):
+        distributions = []
+        labels = []
+        for method in methods:
+            vals = hist_truth_df.loc[hist_truth_df["method"] == method, feat].dropna()
+            if vals.empty:
+                continue
+            distributions.append(vals.to_numpy())
+            labels.append(method)
+        if not distributions:
+            ax.set_title(f"No data for {feat}")
+            continue
+        parts = ax.violinplot(distributions, showextrema=False)
+        for body in parts["bodies"]:
+            body.set_alpha(0.45)
+        ax.set_xticks(range(1, len(labels) + 1))
+        ax.set_xticklabels(labels, rotation=20, ha="right")
+        ax.set_ylabel(feat)
+        ax.set_title(f"{feat} selection per method")
+        ax.grid(True, alpha=0.2, axis="y")
+        ax.axhline(
+            float(best_row[feat]),
+            color="red",
+            linestyle="--",
+            linewidth=1.0,
+            label="Best lookup value"
+        )
+        overall_vals = lookup_df[feat].to_numpy()
+        ax.scatter(
+            np.full_like(overall_vals, fill_value=len(labels) + 0.6, dtype=float),
+            overall_vals,
+            s=6,
+            c="gray",
+            alpha=0.3,
+            label="Lookup table"
+        )
+        ax.set_xlim(0.5, len(labels) + 1.2)
+        ax.legend(loc="upper right", fontsize=8)
+
+    fig.suptitle(f"Parameter selection spread vs lookup optimum ({objective_label})", y=0.98)
+    fig.tight_layout()
+    return fig
+
+
 
 # %%
 lt = load_lookup_csv("P3HT_dataset.csv", impute_features="median")
 # LLM-SI init (deterministic GOAL_A..E scouting before BO)
-hist = compare_methods_from_csv(lt, n_init=3, n_iter=10, seed=34, repeats=3, prompt_profiles= ["custom"],
+hist = compare_methods_from_csv(lt, n_init=3, n_iter=10, seed=124, repeats=10, prompt_profiles= ["perfect", "custom"],
                                 init_method="sobol", include_hybrid=True, readout_source="llm",diagnose_prior=True)
 plot_runs_mean_lookup(hist)
 
- # %%
+
+#%%
+# Focused comparison between baseline BO and the custom hybrid prompt.
+methods_of_interest = ["baseline_ei", "hybrid_perfect"]
+plot_runs_mean_lookup(
+    hist,
+    methods=methods_of_interest,
+    title="Effect of injecting prior knowledge into BO (best-so-far)"
+)
+
+# Build an enriched history with raw formulation parameters + truth objective.
+hist_with_truth, lookup_truth_df, obj_label = attach_lookup_truth(hist, lt)
+plot_parameter_violin(
+    hist_with_truth,
+    lookup_truth_df,
+    methods=methods_of_interest,
+    feature_cols=["P3HT content (%)", "D1 content (%)"],
+    objective_label=obj_label
+)
+
+ #%%
