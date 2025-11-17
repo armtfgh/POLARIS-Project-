@@ -90,6 +90,7 @@ from bo_readout_prompts import (
     SYS_PROMPTS_RANDOM,
     SYS_PROMPTS_BAD,
     SYS_PROMPT_MINIMAL_HUMAN,
+    SYS_PROMPTS_CUSTOM
 )
 
 PROMPT_LIBRARY = {
@@ -99,6 +100,7 @@ PROMPT_LIBRARY = {
     "minimal": SYS_PROMPT_MINIMAL_HUMAN,
     "random": SYS_PROMPTS_RANDOM,
     "bad": SYS_PROMPTS_BAD,
+    "custom": SYS_PROMPTS_CUSTOM
 }
 
 #%%
@@ -637,7 +639,7 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
 
     # --- initial prior selection ---
     if readout_source == "llm":
-        prompt_text = PROMPT_LIBRARY.get(prompt_profile, SYS_PROMPTS_PERFECT)
+        prompt_text = PROMPT_LIBRARY.get(prompt_profile)
         Y_obs2 = Y_obs.unsqueeze(-1)
         gp_ctx = SingleTaskGP(X_obs, Y_obs2)
         mll = ExactMarginalLogLikelihood(gp_ctx.likelihood, gp_ctx)
@@ -648,6 +650,7 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
         ro0_sane = sanitize_readout_dim(ro0_raw, lookup.d)
         ro0_sane = force_scalar_sigma(ro0_sane)
         ro0 = _normalize_readout_to_unit_box(ro0_sane, lookup.mins, lookup.maxs)
+        print(ro0)
     else:
         ro0 = flat_readout()
     prior = readout_to_prior(ro0)
@@ -847,7 +850,7 @@ def run_hybrid_lookup(lookup: LookupTable, *, n_init: int, n_iter: int, seed: in
 
 def compare_methods_from_csv(lookup: LookupTable, n_init: int = 6, n_iter: int = 25, seed: int = 0,
                              repeats: int = 1, include_hybrid: bool = True, readout_source: str = "flat",
-                             init_method: str = "random", diagnose_prior: bool = False) -> pd.DataFrame:
+                             init_method: str = "random", prompt_profiles = ["perfect"] ,diagnose_prior: bool = False) -> pd.DataFrame:
     dfs: List[pd.DataFrame] = []
     rand = run_random_lookup(lookup, n_init=n_init, n_iter=n_iter, seed=seed,
                              repeats=repeats, init_method=init_method)
@@ -857,7 +860,6 @@ def compare_methods_from_csv(lookup: LookupTable, n_init: int = 6, n_iter: int =
     hybrid_debug: List[Dict[str, Any]] = []
     if include_hybrid:
         if readout_source == "llm":
-            prompt_profiles = ["perfect"]
             for profile in prompt_profiles:
                 method_label = f"hybrid_{profile}"
                 hyb = run_hybrid_lookup(lookup, n_init=n_init, n_iter=n_iter, seed=seed, repeats=repeats,
@@ -948,7 +950,7 @@ def plot_runs_mean_lookup(hist_df: pd.DataFrame, *, methods: Optional[List[str]]
 # %%
 lt = load_lookup_csv("P3HT_dataset.csv", impute_features="median")
 # LLM-SI init (deterministic GOAL_A..E scouting before BO)
-hist = compare_methods_from_csv(lt, n_init=3, n_iter=10, seed=22, repeats=10,
+hist = compare_methods_from_csv(lt, n_init=3, n_iter=10, seed=34, repeats=3, prompt_profiles= ["custom"],
                                 init_method="sobol", include_hybrid=True, readout_source="llm",diagnose_prior=True)
 plot_runs_mean_lookup(hist)
 
