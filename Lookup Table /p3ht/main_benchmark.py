@@ -857,7 +857,7 @@ def compare_methods_from_csv(lookup: LookupTable, n_init: int = 6, n_iter: int =
     hybrid_debug: List[Dict[str, Any]] = []
     if include_hybrid:
         if readout_source == "llm":
-            prompt_profiles = ["perfect", "medium", "bad"]
+            prompt_profiles = ["perfect"]
             for profile in prompt_profiles:
                 method_label = f"hybrid_{profile}"
                 hyb = run_hybrid_lookup(lookup, n_init=n_init, n_iter=n_iter, seed=seed, repeats=repeats,
@@ -948,7 +948,7 @@ def plot_runs_mean_lookup(hist_df: pd.DataFrame, *, methods: Optional[List[str]]
 # %%
 lt = load_lookup_csv("P3HT_dataset.csv", impute_features="median")
 # LLM-SI init (deterministic GOAL_A..E scouting before BO)
-hist = compare_methods_from_csv(lt, n_init=3, n_iter=10, seed=25, repeats=3,
+hist = compare_methods_from_csv(lt, n_init=3, n_iter=10, seed=22, repeats=10,
                                 init_method="sobol", include_hybrid=True, readout_source="llm",diagnose_prior=True)
 plot_runs_mean_lookup(hist)
 
