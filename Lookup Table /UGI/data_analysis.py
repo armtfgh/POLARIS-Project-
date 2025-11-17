@@ -849,7 +849,6 @@ if __name__ == "__main__":
                 )
                 print(f"Benchmark plot saved to {output_path.resolve()}")
             else:
-                
                 print(
                     "\nMatplotlib not available; skipping benchmark visualisation.\n"
                     f"Original import error: {MATPLOTLIB_IMPORT_ERROR}"
