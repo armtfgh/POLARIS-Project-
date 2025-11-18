@@ -16,19 +16,19 @@ DATASET (four-component Ugi coupling; objective = isolated yield, fraction 0.0�
 """
 
 UGI_RESPONSE_FORMAT = """
-RESPONSE FORMAT (STRICT JSON; no prose)
+RESPONSE FORMAT (STRICT JSON; no prose, and REPLACE ALL PLACEHOLDER NUMBERS WITH YOUR OWN VALUES)
 {
   "effects": {
-    "x1": {"effect": "decreasing", "scale": 0.6, "confidence": 0.8},
-    "x2": {"effect": "increasing", "scale": 0.6, "confidence": 0.7},
-    "x3": {"effect": "increasing", "scale": 0.9, "confidence": 0.9},
-    "x4": {"effect": "nonmonotone-peak", "scale": 0.5, "confidence": 0.7, "range_hint": [0.2, 0.3]}
+    "x1": {"effect": "<string>", "scale": <float>, "confidence": <float>, "range_hint": [<low>, <high>]},
+    "x2": {"effect": "<string>", "scale": <float>, "confidence": <float>, "range_hint": [<low>, <high>]},
+    "x3": {"effect": "<string>", "scale": <float>, "confidence": <float>, "range_hint": [<low>, <high>]},
+    "x4": {"effect": "<string>", "scale": <float>, "confidence": <float>, "range_hint": [<low>, <high>]}
   },
   "interactions": [
-    {"vars": ["x1", "x3"], "type": "tradeoff", "note": "High isocyanide only pays off when amine stays low."}
+    {"vars": ["x_i","x_j"], "type": "<synergy|tradeoff>", "note": "<short explanation>"}
   ],
   "bumps": [
-    {"mu": [140, 280, 300, 0.27], "sigma": [20, 15, 10, 0.02], "amp": 0.15}
+    {"mu": [<x1_raw>, <x2_raw>, <x3_raw>, <x4_raw>], "sigma": [<sx1>, <sx2>, <sx3>, <sx4>], "amp": <float>}
   ]
 }
 """
@@ -65,8 +65,8 @@ Hotspots (original units):
 SYS_PROMPTS_GOOD = _prompt_template(
     """
 Craft an informed but slightly relaxed prior:
-- Penalise x1 when it exceeds ~200 mM (use a decreasing or valley effect with moderate scale).
-- Reward x2/x3 jointly; treat x3 as the dominant positive axis, x2 as supportive.
+- Penalise x1 when it exceeds ~200 mM (use a decreasing effect with moderate scale).
+- Reward x2/x3 jointly; treat x3 as the dominant increasing axis, x2 as supportive.
 - Model x4 as a peaked acid window centred at ≈0.25 with gentle width.
 - Include one synergy term for (x2,x3) and one tradeoff for (x1,x3).
 - Provide a single bump with mu≈[150, 260, 285, 0.25] and broader sigmas (~30 mM on reagents, 0.03 on x4).
@@ -79,7 +79,7 @@ SYS_PROMPTS_MEDIUM = _prompt_template(
 Produce a cautious prior rooted in the qualitative trends only:
 - Note that x1 tends to hurt yield once it moves above its median; encode a mild decreasing effect.
 - Treat x2 and x3 as monotone increasing but cap their confidence at 0.5.
-- Let x4 be "increase then saturate" rather than a sharp peak.
+- Let x4 be “increase then saturate” rather than a sharp peak (use increasing with range_hint).
 - Mention a single interaction highlighting that x4 only helps when x3 is non-zero.
 - Keep the Gaussian bump coarse (mu ~ [170, 230, 260, 0.22], sigma ~ [40, 50, 50, 0.05]).
 """
@@ -89,7 +89,7 @@ Produce a cautious prior rooted in the qualitative trends only:
 SYS_PROMPTS_RANDOM = _prompt_template(
     """
 Deliberately produce a noisy or contradictory readout to simulate unhelpful advice.
-- Assign random effect directions (some increasing, some decreasing) irrespective of the data trends.
+- Assign random effect directions (use only the allowed words: increasing, decreasing, nonmonotone-peak, nonmonotone-valley, flat) irrespective of the data trends.
 - Provide at least one interaction that mixes unrelated axes (e.g., x1 with x4) with a vague explanation.
 - Place the Gaussian bump near the centre of the domain instead of the true optimum.
 """
@@ -99,9 +99,9 @@ Deliberately produce a noisy or contradictory readout to simulate unhelpful advi
 SYS_PROMPTS_BAD = _prompt_template(
     """
 Encode a confidently wrong prior to stress-test robustness:
-- Claim that x1 should be maximised and that low amine "starves the coupling".
-- Recommend minimising x2 and x3 to "avoid side reactions".
-- Push x4 toward its minimum, stating that acid harms selectivity.
+- Claim that x1 should be maximised (“increasing”) and that low amine "starves the coupling".
+- Recommend minimising x2 and x3 (“decreasing”) to "avoid side reactions".
+- Push x4 toward its minimum (“decreasing”), stating that acid harms selectivity.
 - Place the bump at mu≈[280, 140, 150, 0.05] with narrow sigmas.
 """
 )
@@ -120,7 +120,7 @@ Provide a conservative, human-authored prior:
 SYS_PROMPTS_CUSTOM = _prompt_template(
     """
 Focus on balanced reagent stoichiometry and ptSA titration experiments:
-- Encourage an "L-shaped" manifold where x1 stays near 140–180 mM while x2 and x3 co-vary along the diagonal.
+- Encourage an "L-shaped" manifold where x1 stays near 140–180 mM (use decreasing outside that window) while x2 and x3 co-vary along the diagonal (increasing with range hints).
 - Add a secondary bump for the acid sweep: mu=[140, 240, 280, 0.23], sigma=[20, 40, 30, 0.02].
 - Highlight that the acid optimum drifts lower (0.22) if x1 is not fully minimised.
 """

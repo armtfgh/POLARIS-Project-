@@ -458,6 +458,8 @@ def run_hybrid_continuous(
             model=model,
             unit_to_raw_fn=unit_to_raw_fn,
         )
+        print(f"[Hybrid][continuous] seed={seed} readout ({prompt_profile}):\n"
+              f"{json.dumps(ro0_raw, indent=2)}")
         ro0_sane = sanitize_readout_dim(ro0_raw, len(domain.feature_names), feature_names=domain.feature_names)
         ro0 = _normalize_readout_to_unit_box(ro0_sane, domain.mins, domain.maxs, feature_names=domain.feature_names)
     else:
@@ -582,6 +584,7 @@ def compare_methods_continuous(
             if readout_source == "llm":
                 for profile in prompt_profiles:
                     method_label = f"hybrid_{profile}"
+                    print(f"[Hybrid] continuous seed={current_seed} using readout '{profile}'")
                     hyb = run_hybrid_continuous(
                         domain,
                         n_init=n_init,
@@ -603,6 +606,7 @@ def compare_methods_continuous(
                         )
                     dfs.append(hyb)
             else:
+                print(f"[Hybrid] continuous seed={current_seed} using flat readout")
                 hyb = run_hybrid_continuous(
                     domain,
                     n_init=n_init,
@@ -1206,8 +1210,11 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
             model=model,
             unit_to_raw_fn=unit_to_raw_lookup,
         )
+        print(f"[Hybrid][lookup] seed={seed} readout ({prompt_profile}):\n"
+              f"{json.dumps(ro0_raw, indent=2)}")
         ro0_sane = sanitize_readout_dim(ro0_raw, lookup.d, feature_names=lookup.feature_names)
         ro0 = _normalize_readout_to_unit_box(ro0_sane, lookup.mins, lookup.maxs, feature_names=lookup.feature_names)
+        print(ro0)
     else:
         ro0 = flat_readout(feature_names=lookup.feature_names)
     prior = readout_to_prior(ro0, feature_names=lookup.feature_names)
@@ -1453,6 +1460,7 @@ def compare_methods_from_csv(lookup: LookupTable, n_init: int = 6, n_iter: int =
         if readout_source == "llm":
             for profile in prompt_profiles:
                 method_label = f"hybrid_{profile}"
+                print(f"[Hybrid] lookup using readout '{profile}'")
                 hyb = run_hybrid_lookup(lookup, n_init=n_init, n_iter=n_iter, seed=seed, repeats=repeats,
                                         init_method=init_method, readout_source="llm",
                                         diagnose_prior=diagnose_prior, prompt_profile=profile,
@@ -1468,6 +1476,7 @@ def compare_methods_from_csv(lookup: LookupTable, n_init: int = 6, n_iter: int =
                 dfs.append(hyb)
         else:
             method_label = "hybrid_flat"
+            print("[Hybrid] lookup using flat readout")
             hyb = run_hybrid_lookup(lookup, n_init=n_init, n_iter=n_iter, seed=seed, repeats=repeats,
                                     init_method=init_method, readout_source=readout_source,
                                     diagnose_prior=diagnose_prior, prompt_profile="perfect",
@@ -1624,6 +1633,104 @@ def plot_parameter_violin(hist_truth_df: pd.DataFrame,
     fig.suptitle(f"Parameter selection spread vs lookup optimum ({objective_label})", y=0.98)
     fig.tight_layout()
     return fig
+
+
+def plot_parameter_violin_from_history(
+    hist_df: pd.DataFrame,
+    *,
+    methods: Optional[List[str]] = None,
+    feature_cols: Optional[List[str]] = None,
+    truth_df: Optional[pd.DataFrame] = None,
+    truth_label: str = "yield",
+) -> plt.Figure:
+    """Show how each method's samples distribute for chosen features."""
+    df = hist_df.copy()
+    if methods is None:
+        methods = sorted(df["method"].unique())
+    if feature_cols is None:
+        feature_cols = [c for c in df.columns if c.startswith("x")]
+    if not feature_cols:
+        raise ValueError("No feature columns (x*) present in history.")
+
+    fig, axes = plt.subplots(
+        1,
+        len(feature_cols),
+        figsize=(4.8 * len(feature_cols), 4.6),
+        sharey=False,
+    )
+    if len(feature_cols) == 1:
+        axes = [axes]
+
+    best_truth = None
+    if truth_df is not None and truth_label in truth_df.columns:
+        best_truth = truth_df.loc[truth_df[truth_label].idxmax()]
+
+    for ax, feat in zip(axes, feature_cols):
+        violins = []
+        labels = []
+        for m in methods:
+            vals = df.loc[df["method"] == m, feat].dropna()
+            if vals.empty:
+                continue
+            violins.append(vals.to_numpy())
+            labels.append(m)
+        if not violins:
+            ax.set_title(f"No data for {feat}")
+            continue
+        parts = ax.violinplot(violins, showmeans=False, showextrema=False)
+        for body in parts["bodies"]:
+            body.set_alpha(0.45)
+        ax.set_xticks(range(1, len(labels) + 1))
+        ax.set_xticklabels(labels, rotation=20, ha="right")
+        ax.set_ylabel(feat)
+        ax.grid(True, alpha=0.25, axis="y")
+        if best_truth is not None and feat in best_truth:
+            ax.axhline(
+                float(best_truth[feat]),
+                color="red",
+                linestyle="--",
+                linewidth=1.0,
+                label="Best empirical value",
+            )
+            ax.legend(loc="upper right", fontsize=8)
+    fig.suptitle("Parameter focus per method", y=0.98)
+    fig.tight_layout()
+    return fig
+
+
+def plot_method_2d_hist(
+    hist_df: pd.DataFrame,
+    feature_x: str,
+    feature_y: str,
+    *,
+    methods: Optional[List[str]] = None,
+    bins: int = 30,
+) -> plt.Figure:
+    """2D density plot showing where each method samples."""
+    if methods is None:
+        methods = sorted(hist_df["method"].unique())
+    fig, axes = plt.subplots(1, len(methods), figsize=(5.0 * len(methods), 4.5))
+    if len(methods) == 1:
+        axes = [axes]
+    for ax, method in zip(axes, methods):
+        subset = hist_df[hist_df["method"] == method]
+        if subset.empty:
+            ax.set_title(f"No data for {method}")
+            continue
+        h = ax.hist2d(
+            subset[feature_x],
+            subset[feature_y],
+            bins=bins,
+            cmap="viridis",
+        )
+        fig.colorbar(h[3], ax=ax)
+        ax.set_xlabel(feature_x)
+        ax.set_ylabel(feature_y)
+        ax.set_title(method)
+        ax.grid(True, alpha=0.15)
+    fig.suptitle(f"{feature_x} vs {feature_y} sampling density", y=0.98)
+    fig.tight_layout()
+    return fig
 #%%
 if __name__ == "__main__":
     domain = build_continuous_domain()
@@ -1643,13 +1750,40 @@ if __name__ == "__main__":
         domain,
         n_init=5,
         n_iter=20,
-        seed=112,
+        seed=41,
         repeats=3,
         include_hybrid=True,
-        readout_source='llm',
+        readout_source="llm",
         prompt_profiles="best",
         early_prior_boost=True,
-        early_prior_steps=5
+        early_prior_steps=5,
+        diagnose_prior=True,
     )
     plot_runs_mean_lookup(hist)
+
+
 #%%
+    truth_df = pd.read_csv("ugi_merged_dataset.csv")
+
+    feature_subset = domain.feature_names[:2]
+    methods_to_show = [m for m in ["random", "baseline_ei"] if m in hist["method"].unique()]
+    if "hybrid_bad" in hist["method"].unique():
+        methods_to_show.append("hybrid_bad")
+    if "hybrid_best" in hist["method"].unique():
+        methods_to_show.append("hybrid_best")    
+    if methods_to_show and feature_subset:
+        plot_parameter_violin_from_history(
+            hist,
+            methods=methods_to_show,
+            feature_cols=[f"x{domain.feature_names.index(name)+1}" for name in feature_subset],
+            truth_df=truth_df,
+        )
+        plot_method_2d_hist(
+            hist,
+            feature_x=f"x{domain.feature_names.index(feature_subset[0])+1}",
+            feature_y=f"x{domain.feature_names.index(feature_subset[1])+1}",
+            methods=methods_to_show,
+        )
+#%%
+
+# debug_runs = hist.attrs.get("prior_debug_runs", [])
