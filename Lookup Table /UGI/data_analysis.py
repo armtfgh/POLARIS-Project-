@@ -13,6 +13,21 @@ from sklearn.model_selection import train_test_split
 
 warnings.filterwarnings("ignore")
 
+UGI_PATH_PATTERN = "ugi_raw/ugi_hyvu_{:04d}.csv"
+UGI_FILE_COUNT = 100
+UGI_COLUMN_RENAMES = {
+    "[amine](mM)": "amine_mM",
+    "[aldehyde](mM)": "aldehyde_mM",
+    "[isocyanide](mM)": "isocyanide_mM",
+}
+UGI_OPTIONAL_DROPS = ["spectrum_dir"]
+UGI_FEATURE_ORDER = [
+    "amine_mM",
+    "aldehyde_mM",
+    "isocyanide_mM",
+    "ptsa",
+]
+
 try:
     import matplotlib.pyplot as plt
 
@@ -57,6 +72,98 @@ def load_ugi_series(path_pattern: str = "ugi_raw/ugi_hyvu_{:04d}.csv", count: in
         raise ValueError("No data files were loaded; check the path pattern or file count.")
 
     return pd.concat(data_frames, ignore_index=True)
+
+
+def merge_ugi_raw_datasets(
+    path_pattern: str = UGI_PATH_PATTERN,
+    *,
+    count: int = UGI_FILE_COUNT,
+    drop_columns: Optional[Iterable[str]] = UGI_OPTIONAL_DROPS,
+    column_renames: Optional[Dict[str, str]] = UGI_COLUMN_RENAMES,
+) -> pd.DataFrame:
+    """Return a cleaned DataFrame that merges all UGI raw CSV files."""
+
+    df = load_ugi_series(path_pattern=path_pattern, count=count)
+
+    if drop_columns:
+        df = df.drop(columns=list(drop_columns), errors="ignore")
+
+    if column_renames:
+        df = df.rename(columns=column_renames)
+
+    # Ensure the core feature columns exist even if ordering differs in the CSVs
+    missing = [col for col in UGI_FEATURE_ORDER if col not in df.columns]
+    if missing:
+        raise ValueError(
+            "Missing expected UGI parameters: " + ", ".join(missing)
+        )
+
+    desired_order = ["yield", *UGI_FEATURE_ORDER]
+    remaining_cols = [c for c in df.columns.tolist() if c not in desired_order]
+    ordered = desired_order + remaining_cols
+    df = df[[c for c in ordered if c in df.columns]].copy()
+    return df
+
+
+def _ordered_feature_columns(feature_columns: List[str]) -> List[str]:
+    """Return feature columns ordered according to UGI_FEATURE_ORDER when possible."""
+
+    # Preserve preferred order but keep unknown columns at the end
+    preferred = [col for col in UGI_FEATURE_ORDER if col in feature_columns]
+    remaining = [col for col in feature_columns if col not in preferred]
+    return preferred + remaining
+
+
+def build_ugi_ml_oracle(
+    *,
+    path_pattern: str = UGI_PATH_PATTERN,
+    file_count: int = UGI_FILE_COUNT,
+    drop_columns: Optional[Iterable[str]] = UGI_OPTIONAL_DROPS,
+    column_renames: Optional[Dict[str, str]] = UGI_COLUMN_RENAMES,
+    target: str = "yield",
+    save_merged_path: Optional[Path | str] = None,
+) -> Dict[str, object]:
+    """End-to-end helper that returns the trained RF oracle and cleaned dataset."""
+
+    df_merged = merge_ugi_raw_datasets(
+        path_pattern=path_pattern,
+        count=file_count,
+        drop_columns=drop_columns,
+        column_renames=column_renames,
+    )
+
+    if save_merged_path is not None:
+        path = Path(save_merged_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        df_merged.to_csv(path, index=False)
+
+    df_ml, feature_columns = prepare_features(df_merged, target=target)
+    feature_columns = _ordered_feature_columns(feature_columns)
+    X = df_ml[feature_columns]
+    y = df_ml[target]
+
+    model, metrics, feature_importances = train_random_forest(X, y)
+    oracle = RandomForestOracle(model, feature_columns)
+    candidate_pool_df = df_ml[feature_columns].drop_duplicates().reset_index(drop=True)
+
+    payload: Dict[str, object] = {
+        "dataframe": df_ml,
+        "feature_columns": feature_columns,
+        "model": model,
+        "metrics": metrics,
+        "feature_importances": feature_importances,
+        "oracle": oracle,
+        "candidate_pool_df": candidate_pool_df,
+    }
+
+    if torch is not None:
+        candidate_pool = torch.tensor(
+            candidate_pool_df.to_numpy(dtype="float64"),
+            dtype=torch.double,
+        )
+        payload["candidate_pool_tensor"] = candidate_pool
+
+    return payload
 
 
 def report_duplicates(df: pd.DataFrame, subset: Iterable[str] | None = None) -> None:
@@ -677,14 +784,16 @@ def print_bo_summary(
 
 #%%
 if __name__ == "__main__":
-    df_tot = load_ugi_series()
-    report_duplicates(df_tot)
+    payload = build_ugi_ml_oracle(save_merged_path=Path("ugi_merged_dataset.csv"))
+    df_ml = payload["dataframe"]  # type: ignore[index]
+    feature_columns = payload["feature_columns"]  # type: ignore[index]
+    model = payload["model"]  # type: ignore[index]
+    metrics = payload["metrics"]  # type: ignore[index]
+    feature_importances = payload["feature_importances"]  # type: ignore[index]
+    oracle = payload["oracle"]  # type: ignore[index]
+    candidate_pool_df = payload["candidate_pool_df"]  # type: ignore[index]
 
-    df_ml, feature_columns = prepare_features(df_tot, target="yield")
-    X = df_ml[feature_columns]
-    y = df_ml["yield"]
-
-    model, metrics, feature_importances = train_random_forest(X, y)
+    report_duplicates(df_ml)
 
     print("\nRandomForestRegressor metrics:")
     print(f" - OOB score: {metrics['oob_score']:.4f}")
@@ -695,8 +804,6 @@ if __name__ == "__main__":
     print_feature_importances(feature_importances)
 
     if BOTORCH_AVAILABLE:
-        oracle = RandomForestOracle(model, feature_columns)
-        candidate_pool_df = df_ml[feature_columns].drop_duplicates().reset_index(drop=True)
         candidate_pool = torch.tensor(
             candidate_pool_df.to_numpy(dtype="float64"),
             dtype=torch.double,

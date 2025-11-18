@@ -1,0 +1,144 @@
+PROMPT_HEADER = """
+You are a prior-designer for Bayesian Optimisation on a FINITE lookup table (all candidates are enumerated).
+Summarise plausible structure-activity trends as JSON: (i) main effects per variable, (ii) a handful of interactions,
+and (iii) 1-2 Gaussian bumps that bias the prior mean toward promising UGI reaction mixtures.
+"""
+
+UGI_DATASET_CONTEXT = """
+DATASET (four-component Ugi coupling; objective = isolated yield, fraction 0.0–0.16)
+- Variables (mapping to x1..x4):
+  x1 = amine_mM       (120–300 mM)  → excessive amine suppresses yield.
+  x2 = aldehyde_mM    (120–300 mM)  → moderately positive lever when paired with isocyanide.
+  x3 = isocyanide_mM  (120–300 mM)  → strongest positive driver; peak near the 280–300 mM edge.
+  x4 = ptsa           (0.022–0.30 equiv) → Bronsted acid promoter; higher loadings (≈0.25–0.30) accelerate convergence.
+- Global trend snapshot (empirical correlations):
+  yield vs x1: ρ ≈ -0.20  |  yield vs x2: ρ ≈ +0.23  |  yield vs x3: ρ ≈ +0.37  |  yield vs x4: ρ ≈ +0.40.
+"""
+
+UGI_RESPONSE_FORMAT = """
+RESPONSE FORMAT (STRICT JSON; no prose)
+{
+  "effects": {
+    "x1": {"effect": "decreasing", "scale": 0.6, "confidence": 0.8},
+    "x2": {"effect": "increasing", "scale": 0.6, "confidence": 0.7},
+    "x3": {"effect": "increasing", "scale": 0.9, "confidence": 0.9},
+    "x4": {"effect": "nonmonotone-peak", "scale": 0.5, "confidence": 0.7, "range_hint": [0.2, 0.3]}
+  },
+  "interactions": [
+    {"vars": ["x1", "x3"], "type": "tradeoff", "note": "High isocyanide only pays off when amine stays low."}
+  ],
+  "bumps": [
+    {"mu": [140, 280, 300, 0.27], "sigma": [20, 15, 10, 0.02], "amp": 0.15}
+  ]
+}
+"""
+
+
+def _prompt_template(body: str) -> str:
+    return f"""{PROMPT_HEADER}
+{UGI_DATASET_CONTEXT}
+{body.strip()}
+
+{UGI_RESPONSE_FORMAT}
+"""
+
+
+SYS_PROMPTS_PERFECT = _prompt_template(
+    """
+Observations from the high-yield frontier (~0.14–0.16):
+1) x1 (amine): keep at the minimum (≈120–150 mM). Any excess amine quenches the acid and kills yield.
+2) x2 (aldehyde): monotone increasing up to ~280 mM but saturates afterwards; moderate scale.
+3) x3 (isocyanide): strict increasing; the best runs pin x3 at the ceiling (≥290 mM).
+4) x4 (ptsa): sharply peaked around 0.14–0.15 equiv; raising the acid toward 0.20+ lowers yield in all cases.
+
+Interactions to codify:
+- (x2, x3) synergy: both need to be high to leverage the Ugi manifold.
+- (x1, x3) tradeoff: high amine erodes the benefits of excess isocyanide.
+- (x3, x4) mild synergy: the acid boost matters most when x3 is high.
+
+Hotspots (original units):
+  * Primary: mu=[120, 300, 300, 0.14], sigma=[18, 12, 8, 0.008], amp=0.18
+"""
+)
+
+
+SYS_PROMPTS_GOOD = _prompt_template(
+    """
+Craft an informed but slightly relaxed prior:
+- Penalise x1 when it exceeds ~200 mM (use a decreasing or valley effect with moderate scale).
+- Reward x2/x3 jointly; treat x3 as the dominant positive axis, x2 as supportive.
+- Model x4 as a peaked acid window centred at ≈0.25 with gentle width.
+- Include one synergy term for (x2,x3) and one tradeoff for (x1,x3).
+- Provide a single bump with mu≈[150, 260, 285, 0.25] and broader sigmas (~30 mM on reagents, 0.03 on x4).
+"""
+)
+
+
+SYS_PROMPTS_MEDIUM = _prompt_template(
+    """
+Produce a cautious prior rooted in the qualitative trends only:
+- Note that x1 tends to hurt yield once it moves above its median; encode a mild decreasing effect.
+- Treat x2 and x3 as monotone increasing but cap their confidence at 0.5.
+- Let x4 be "increase then saturate" rather than a sharp peak.
+- Mention a single interaction highlighting that x4 only helps when x3 is non-zero.
+- Keep the Gaussian bump coarse (mu ~ [170, 230, 260, 0.22], sigma ~ [40, 50, 50, 0.05]).
+"""
+)
+
+
+SYS_PROMPTS_RANDOM = _prompt_template(
+    """
+Deliberately produce a noisy or contradictory readout to simulate unhelpful advice.
+- Assign random effect directions (some increasing, some decreasing) irrespective of the data trends.
+- Provide at least one interaction that mixes unrelated axes (e.g., x1 with x4) with a vague explanation.
+- Place the Gaussian bump near the centre of the domain instead of the true optimum.
+"""
+)
+
+
+SYS_PROMPTS_BAD = _prompt_template(
+    """
+Encode a confidently wrong prior to stress-test robustness:
+- Claim that x1 should be maximised and that low amine "starves the coupling".
+- Recommend minimising x2 and x3 to "avoid side reactions".
+- Push x4 toward its minimum, stating that acid harms selectivity.
+- Place the bump at mu≈[280, 140, 150, 0.05] with narrow sigmas.
+"""
+)
+
+
+SYS_PROMPT_MINIMAL_HUMAN = _prompt_template(
+    """
+Provide a conservative, human-authored prior:
+- Effects: x1 = decreasing (scale~0.3), x2 = mildly increasing, x3 = increasing, x4 = peaked around 0.25.
+- Interaction: (x1,x3) tradeoff only.
+- One bump near mu=[150, 260, 290, 0.25] with sigma=[25, 25, 20, 0.025], amp=0.1.
+"""
+)
+
+
+SYS_PROMPTS_CUSTOM = _prompt_template(
+    """
+Focus on balanced reagent stoichiometry and ptSA titration experiments:
+- Encourage an "L-shaped" manifold where x1 stays near 140–180 mM while x2 and x3 co-vary along the diagonal.
+- Add a secondary bump for the acid sweep: mu=[140, 240, 280, 0.23], sigma=[20, 40, 30, 0.02].
+- Highlight that the acid optimum drifts lower (0.22) if x1 is not fully minimised.
+"""
+)
+
+
+SYS_PROMPTS_CUSTOM_GOOD = SYS_PROMPTS_GOOD
+
+
+SYS_PROMPTS_BEST = _prompt_template(
+    """
+Use the absolute best experimental run as the anchor. The highest observed yield (≈0.156) occurs for:
+    x1 ≈ 120 mM (amine), x2 ≈ 270 mM (aldehyde), x3 ≈ 300 mM (isocyanide), x4 ≈ 0.120 ptSA.
+
+Instructions:
+- Force extremely tight range hints around those values: x1 in [118, 125], x2 in [265, 305], x3 in [295, 300], x4 in [0.11, 0.13].
+- Treat x1 as strongly decreasing outside that window (scale≈1.0). x2 and x3 should be “increasing” with high confidence but saturate in that precise range. x4 must be “nonmonotone-peak” centred at 0.120 with sigma ≈0.005.
+- Add a single Gaussian bump exactly at [120, 270, 300, 0.120] with sigma matching those narrow windows.
+- Interactions: emphasise that keeping x1 clamped at the floor enables x3 saturation; any drift in x4 must stay coupled to high x2/x3.
+"""
+)

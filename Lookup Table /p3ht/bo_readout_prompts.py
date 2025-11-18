@@ -15,6 +15,49 @@ DATASET (P3HT blend library; last column = objective "Conductivity", units ≈ S
   x5 = D8 content (%)         (0 – 75.0)
 - Outcome: Conductivity (maximize)
 
+Please Strictly Use Below Context:
+Prioritize P3HT Saturation (x1): Since P3HT is the base polymer, maximize its concentration (x1) to achieve superior blending uniformity. Seek compositions where x1 is high, ideally $75\%$ or greater, as low x1 leads to unstable mixtures.
+Minimize D1 Content (x2): The D1 donor (x2) likely introduces disorder into the P3HT matrix. To maintain structural integrity and charge transport paths, x2 must be kept at trace amounts (less than $5\%$) or entirely omitted.
+Introduce High Concentrations of D6 (x4) and D2 (x3): These components offer valuable alternative pathways for charge transfer. Design blends where x4 and x3 are major constituents, ideally with $20-55\%$ content each, to diversify the blend's electronic properties.
+Avoid the Narrow P3HT Window: The reported narrow window for x1 (around $40-45\%$) is a constraint of early testing. Explore the vast, high-x1 regions (e.g., above $80\%$ P3HT) where most of the blend space lies, as this offers the highest potential for novel, high-resistance interfaces.
+
+
+
+
+RESPONSE FORMAT (STRICT JSON; no prose) [below is just the format not the accurate one. based on rules you need to design the proper one]
+{
+  "effects": {
+    "x1": {"effect": "increasing",  "scale": 0.42, "confidence": 0.51},
+    "x2": {"effect": "flat",  "scale": 0.37, "confidence": 0.63},
+    "x3": {"effect": "flat",        "scale": 0.18, "confidence": 0.28},
+    "x4": {"effect": "flat",  "scale": 0.55, "confidence": 0.47},
+    "x5": {"effect": "flat",  "scale": 0.22, "confidence": 0.39}
+  },
+  "interactions": [
+    {"vars": ["x2","x5"], "type": "random", "note": "uninformative placeholder"}
+  ],
+  "bumps": [
+    {"mu": [12.0, 18.0, 2.0, 1.5, 0.2], "sigma": [5.0, 6.5, 2.0, 1.8, 0.9], "amp": 0.07}
+  ]
+}
+Output ONLY the JSON object. Use plain decimals.
+"""
+
+
+SYS_PROMPTS_CUSTOM_GOOD = """
+You are a prior-designer for Bayesian Optimization on a FINITE lookup table (all candidates are pre-enumerated). 
+Return a compact JSON readout capturing (i) main effects per variable, (ii) important interactions, and (iii) 1–2 Gaussian bumps 
+that bias the prior mean toward the most conductive formulations in this dataset.
+
+DATASET (P3HT blend library; last column = objective "Conductivity", units ≈ S/cm)
+- Variables (mapping to x1..x5):
+  x1 = P3HT content (%)       (global range ≈ 18.7 – 96.3)
+  x2 = D1 content (%)         (0 – 60.0)
+  x3 = D2 content (%)         (0 – 75.0)
+  x4 = D6 content (%)         (0 – 60.0)
+  x5 = D8 content (%)         (0 – 75.0)
+- Outcome: Conductivity (maximize)
+
 RUles To Know:
 -Rule 1: Maximize D1. Conductivity is overwhelmingly positive correlated with D1 content (x2} 0.8 correlation). The system must prioritize blends where x2 is near its global maximum.
 -Rule 2: Zero-Out Impurities. Components x3 (D2), x4(D6), and x5 (D8) must be kept below 1.0% wherever possible.
@@ -39,7 +82,6 @@ RESPONSE FORMAT (STRICT JSON; no prose) [below is just the format not the accura
 }
 Output ONLY the JSON object. Use plain decimals.
 """
-
 
 
 
