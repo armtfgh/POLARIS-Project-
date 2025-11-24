@@ -296,6 +296,173 @@ def render_storyboard(panels: List[PriorPanel], truth, X1, X2, save_path: str | 
     plt.show()
 
 
+def render_single_surface(
+    X1: np.ndarray,
+    X2: np.ndarray,
+    surface: np.ndarray,
+    title: str,
+    save_path: str,
+    vmin: float,
+    vmax: float,
+) -> None:
+    """Save a single contour plot without internal text boxes."""
+    cmap = colormaps["viridis"]
+    levels = np.linspace(vmin, vmax, 40)
+    fig, ax = plt.subplots(figsize=(6, 5))
+    im = ax.contourf(X1, X2, surface, levels=levels, cmap=cmap, vmin=vmin, vmax=vmax)
+    ax.contour(X1, X2, surface, levels=10, colors="k", linewidths=0.4, alpha=0.6)
+    ax.set_title(title)
+    ax.set_xlabel("$x_1$")
+    ax.set_ylabel("$x_2$")
+    ax.set_aspect("equal")
+    fig.colorbar(im, ax=ax, label="Surface value / prior mean")
+    fig.tight_layout()
+    fig.savefig(save_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
+def compute_prior_components(prior_spec: Dict[str, Any], X1: np.ndarray, X2: np.ndarray) -> List[Tuple[str, np.ndarray]]:
+    """Break a prior into component surfaces for visualization."""
+    components: List[Tuple[str, np.ndarray]] = []
+    effects = prior_spec.get("effects") or {}
+    if "x1" in effects:
+        spec = {"effects": {"x1": effects["x1"]}, "interactions": [], "bumps": []}
+        components.append(("x1 effect", evaluate_prior_surface(spec, X1, X2)))
+    if "x2" in effects:
+        spec = {"effects": {"x2": effects["x2"]}, "interactions": [], "bumps": []}
+        components.append(("x2 effect", evaluate_prior_surface(spec, X1, X2)))
+
+    for inter in prior_spec.get("interactions") or []:
+        label = f"interaction ({inter.get('type', 'synergy')})"
+        spec = {"effects": {}, "interactions": [inter], "bumps": []}
+        components.append((label, evaluate_prior_surface(spec, X1, X2)))
+
+    for idx, bump in enumerate(prior_spec.get("bumps") or []):
+        spec = {"effects": {}, "interactions": [], "bumps": [bump]}
+        components.append((f"bump {idx + 1}", evaluate_prior_surface(spec, X1, X2)))
+
+    return components
+
+
+def render_prior_flow(
+    X1: np.ndarray,
+    X2: np.ndarray,
+    truth: np.ndarray,
+    prior_surface: np.ndarray,
+    prior_spec: Dict[str, Any],
+    save_path: str,
+) -> None:
+    """Flow: human text -> LLM readout -> Prior F -> compare to truth + component breakdown."""
+    cmap_main = colormaps["viridis"]
+    cmap_diff = colormaps["coolwarm"]
+    global_min = min(truth.min(), prior_surface.min())
+    global_max = max(truth.max(), prior_surface.max())
+    norm = Normalize(vmin=global_min, vmax=global_max)
+    diff = prior_surface - truth
+    diff_abs = max(abs(diff.min()), abs(diff.max()))
+
+    components = compute_prior_components(prior_spec, X1, X2)
+    comp_min = min(s.min() for _, s in components) if components else 0.0
+    comp_max = max(s.max() for _, s in components) if components else 1.0
+    comp_norm = Normalize(vmin=comp_min, vmax=comp_max)
+
+    fig = plt.figure(figsize=(18, 12))
+    gs = fig.add_gridspec(3, 3, height_ratios=[1.1, 4.0, 3.2], hspace=0.8, wspace=0.35)
+
+    # Flow boxes and arrows.
+    flow_ax = fig.add_subplot(gs[0, :])
+    flow_ax.axis("off")
+    flow_nodes = [
+        ("Human text input", 0.08),
+        ("LLM readout", 0.33),
+        ("Prior F map", 0.58),
+        ("Compare to truth", 0.83),
+    ]
+    for label, xpos in flow_nodes:
+        flow_ax.text(
+            xpos,
+            0.55,
+            label,
+            ha="center",
+            va="center",
+            fontsize=12,
+            bbox=dict(boxstyle="round,pad=0.5", facecolor="#eef3ff", edgecolor="#5271a6", alpha=0.95),
+            transform=flow_ax.transAxes,
+        )
+    for (label_a, xa), (_, xb) in zip(flow_nodes[:-1], flow_nodes[1:]):
+        flow_ax.annotate(
+            "",
+            xy=(xb - 0.06, 0.55),
+            xytext=(xa + 0.06, 0.55),
+            xycoords="axes fraction",
+            arrowprops=dict(arrowstyle="->", lw=2, color="#4b5563"),
+        )
+    flow_ax.annotate(
+        "Decompose Prior F",
+        xy=(flow_nodes[2][1], 0.15),
+        xytext=(flow_nodes[2][1], 0.45),
+        xycoords="axes fraction",
+        ha="center",
+        va="center",
+        fontsize=11,
+        arrowprops=dict(arrowstyle="->", lw=2, color="#4b5563"),
+    )
+
+    # Main comparison row.
+    truth_ax = fig.add_subplot(gs[1, 0])
+    im_truth = truth_ax.contourf(X1, X2, truth, levels=40, cmap=cmap_main, norm=norm)
+    truth_ax.contour(X1, X2, truth, levels=12, colors="k", linewidths=0.35, alpha=0.6)
+    truth_ax.set_title("Ground truth")
+    truth_ax.set_xlabel("$x_1$")
+    truth_ax.set_ylabel("$x_2$")
+    truth_ax.set_aspect("equal")
+    fig.colorbar(im_truth, ax=truth_ax, fraction=0.046, pad=0.02, label="Value")
+
+    prior_ax = fig.add_subplot(gs[1, 1])
+    im_prior = prior_ax.contourf(X1, X2, prior_surface, levels=40, cmap=cmap_main, norm=norm)
+    prior_ax.contour(X1, X2, prior_surface, levels=12, colors="k", linewidths=0.35, alpha=0.6)
+    prior_ax.set_title("Prior F (LLM-derived)")
+    prior_ax.set_xlabel("$x_1$")
+    prior_ax.set_ylabel("$x_2$")
+    prior_ax.set_aspect("equal")
+    fig.colorbar(im_prior, ax=prior_ax, fraction=0.046, pad=0.02, label="Value")
+
+    diff_ax = fig.add_subplot(gs[1, 2])
+    im_diff = diff_ax.contourf(
+        X1,
+        X2,
+        diff,
+        levels=40,
+        cmap=cmap_diff,
+        norm=Normalize(vmin=-diff_abs, vmax=diff_abs),
+    )
+    diff_ax.contour(X1, X2, diff, levels=10, colors="k", linewidths=0.3, alpha=0.6)
+    diff_ax.set_title("Prior F – truth")
+    diff_ax.set_xlabel("$x_1$")
+    diff_ax.set_ylabel("$x_2$")
+    diff_ax.set_aspect("equal")
+    fig.colorbar(im_diff, ax=diff_ax, fraction=0.046, pad=0.02, label="Delta")
+
+    # Component breakdown row.
+    if components:
+        comp_gs = gs[2, :].subgridspec(1, len(components), wspace=0.2)
+        for idx, (label, surface) in enumerate(components):
+            ax = fig.add_subplot(comp_gs[0, idx])
+            im = ax.contourf(X1, X2, surface, levels=30, cmap=cmap_main, norm=comp_norm)
+            ax.contour(X1, X2, surface, levels=10, colors="k", linewidths=0.25, alpha=0.55)
+            ax.set_title(label, fontsize=10)
+            ax.set_xlabel("$x_1$")
+            if idx == 0:
+                ax.set_ylabel("$x_2$")
+            ax.set_aspect("equal")
+            if idx == len(components) - 1:
+                fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="Component value")
+
+    fig.suptitle("Flow from human input to LLM readout → Prior F → comparison + components", fontsize=18)
+    fig.savefig(save_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Render prior storyboard for the Franke surface.")
     parser.add_argument(
@@ -419,6 +586,26 @@ def main() -> None:
     panels = build_panels_from_specs(panel_specs, X1, X2, truth)
     render_storyboard(panels, truth, X1, X2, save_path=args.output)
 
+    # Save standalone ground-truth and Prior F panels (no text boxes).
+    output_dir = os.path.join(os.getcwd(), "franke_surface_figs")
+    os.makedirs(output_dir, exist_ok=True)
+    prior_f_surface = panels[5].surface  # Prior F is sixth in panel_specs
+    vmin = min(truth.min(), prior_f_surface.min())
+    vmax = max(truth.max(), prior_f_surface.max())
+    render_single_surface(
+        X1, X2, truth, "Ground truth — Franke surface", os.path.join(output_dir, "ground_truth.png"), vmin, vmax
+    )
+    render_single_surface(
+        X1, X2, prior_f_surface, "Prior F — data-aligned hybrid", os.path.join(output_dir, "prior_f.png"), vmin, vmax
+    )
+    render_prior_flow(
+        X1,
+        X2,
+        truth,
+        prior_f_surface,
+        prior_f_spec,
+        os.path.join(output_dir, "prior_f_flow.png"),
+    )
 
 if __name__ == "__main__":
     main()

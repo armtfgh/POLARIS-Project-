@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union, TYPE_CHECKING
 
 import numpy as np
@@ -477,6 +478,50 @@ def plot_alignment_residual_heatmaps(lookup: 'LookupTable',
     cbar.set_label("Residual (truth − prior)", fontsize=11)
     plt.tight_layout()
     return fig
+
+
+def build_p3ht_feature_table(csv_path: str = "P3HT_dataset.csv") -> pd.DataFrame:
+    """Summarize P3HT lookup table features with roles, units, ranges, and types."""
+    df = pd.read_csv(csv_path)
+    meta = [
+        ("P3HT content (%)", "Host polymer fraction (wt%)", "%", "continuous input"),
+        ("D1 content (%)", "Additive D1 loading (wt%)", "%", "continuous input"),
+        ("D2 content (%)", "Additive D2 loading (wt%)", "%", "continuous input"),
+        ("D6 content (%)", "Additive D6 loading (wt%)", "%", "continuous input"),
+        ("D8 content (%)", "Additive D8 loading (wt%)", "%", "continuous input"),
+        ("Conductivity", "Target conductivity", "S/cm", "continuous target"),
+    ]
+    rows = []
+    for name, role, units, var_type in meta:
+        if name not in df.columns:
+            raise ValueError(f"Column '{name}' not found in {csv_path}.")
+        s = df[name]
+        rng = f"{float(s.min()):.2f} – {float(s.max()):.2f}"
+        rows.append(
+            {
+                "Parameter": name,
+                "Role": role,
+                "Units": units,
+                "Range": rng,
+                "Type": var_type,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def write_table_files(table_df: pd.DataFrame, *, csv_path: Optional[str] = None, md_path: Optional[str] = None) -> None:
+    """Write table to CSV and/or Markdown (Markdown written without extra dependencies)."""
+    if csv_path:
+        os.makedirs(os.path.dirname(csv_path) or ".", exist_ok=True)
+        table_df.to_csv(csv_path, index=False)
+    if md_path:
+        os.makedirs(os.path.dirname(md_path) or ".", exist_ok=True)
+        headers = list(table_df.columns)
+        lines = ["|" + "|".join(headers) + "|", "|" + "|".join(["---"] * len(headers)) + "|"]
+        for _, row in table_df.iterrows():
+            lines.append("|" + "|".join(str(row[h]) for h in headers) + "|")
+        with open(md_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
 
 
 if __name__ == "__main__":
