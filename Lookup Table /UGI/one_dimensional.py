@@ -51,6 +51,13 @@ ALLOWED_EFFECTS = {
     "valley",
 }
 
+COLORS = {
+    "baseline": "#1f77b4",  # blue
+    "shaped": "#ff7f0e",  # orange
+    "obs": "#d62728",  # red
+    "prior": "#2ca02c",  # green
+}
+
 
 def true_function(x: torch.Tensor) -> torch.Tensor:
     """Ground-truth 1-D function (kept secret from the prior)."""
@@ -191,7 +198,7 @@ def llm_generate_readout(
             "LLM mode requires the `openai` and `httpx` packages to be installed."
         ) from exc
 
-    client = OpenAI(api_key=api_key, http_client=httpx.Client(timeout=60.0))
+    client = OpenAI(api_key=api_key, http_client=httpx.Client(verify=False))
 
     system = (
         "You design prior means for Bayesian optimization.\n"
@@ -246,6 +253,39 @@ def llm_generate_readout(
     except json.JSONDecodeError as exc:
         raise ValueError(f"Failed to parse LLM JSON: {exc}\nRaw:\n{raw_text}") from exc
     return sanitize_readout_1d(ro), raw_text
+
+
+def expected_improvement(mu: np.ndarray, sigma: np.ndarray, best_f: float, *, xi: float = 0.0) -> np.ndarray:
+    """Analytic EI for Normal(mu, sigma^2)."""
+    sigma = np.asarray(sigma, dtype=float)
+    mu = np.asarray(mu, dtype=float)
+    sigma_safe = np.maximum(sigma, 1e-12)
+    imp = mu - float(best_f) - float(xi)
+    z = imp / sigma_safe
+    phi = (1.0 / math.sqrt(2.0 * math.pi)) * np.exp(-0.5 * z**2)
+    Phi = 0.5 * (1.0 + np.vectorize(math.erf)(z / math.sqrt(2.0)))
+    ei = imp * Phi + sigma_safe * phi
+    ei[sigma <= 1e-12] = np.maximum(imp[sigma <= 1e-12], 0.0)
+    return np.maximum(ei, 0.0)
+
+
+def set_manuscript_style() -> None:
+    """Matplotlib rcParams tuned for manuscript figures."""
+    plt.rcParams.update(
+        {
+            "figure.dpi": 120,
+            "savefig.dpi": 350,
+            "font.size": 10,
+            "axes.titlesize": 11,
+            "axes.labelsize": 10,
+            "legend.fontsize": 9,
+            "xtick.labelsize": 9,
+            "ytick.labelsize": 9,
+            "lines.linewidth": 2.0,
+            "axes.linewidth": 0.8,
+            "grid.alpha": 0.25,
+        }
+    )
 
 def fit_plain_gp(train_x: torch.Tensor, train_y: torch.Tensor) -> SingleTaskGP:
     """Standard GP trained with a flat prior."""
@@ -364,6 +404,145 @@ def plot_gp(
     ax.legend(loc="best", fontsize=9)
 
 
+def _compute_for_demo(
+    *,
+    n_train: int,
+    noise: float,
+    seed: int,
+    hint: Optional[str],
+    preset: str,
+    use_llm: bool,
+    llm_prompt: Optional[str],
+    llm_model: str,
+    llm_temperature: float,
+    llm_max_tokens: int,
+    llm_api_key: Optional[str],
+    prior_strength: float,
+    prior_scale_mode: str,
+    alpha_max: float,
+    allow_prior_inversion: bool,
+    grid_n: int,
+    acq_xi: float,
+    verbose: bool,
+) -> Dict[str, object]:
+    if hint is None:
+        if preset not in PRESET_HINTS:
+            raise ValueError(f"Unknown preset '{preset}'. Valid options: {sorted(PRESET_HINTS)}")
+        text_hint = PRESET_HINTS[preset]
+    else:
+        text_hint = hint
+
+    train_x, train_y = sample_training_points(n_train, noise, seed)
+    train_x = train_x.to(DEVICE)
+    train_y = train_y.to(DEVICE)
+
+    model_flat = fit_plain_gp(train_x, train_y)
+
+    llm_raw: Optional[str] = None
+    readout_source = "heuristic"
+    prompt_used = text_hint
+    if use_llm:
+        readout_source = "llm"
+        prompt_text = (llm_prompt or text_hint).strip()
+        prompt_used = prompt_text
+        readout, llm_raw = llm_generate_readout(
+            prompt=prompt_text,
+            model=llm_model,
+            temperature=llm_temperature,
+            max_tokens=llm_max_tokens,
+            api_key=llm_api_key,
+        )
+    else:
+        readout = sanitize_readout_1d(parse_text_hint(text_hint))
+
+    prior = readout_to_prior(readout, feature_names=["x1"])
+    gp_resid, prior_scale, prior_debug = fit_text_prior_gp(
+        train_x,
+        train_y,
+        prior,
+        prior_strength=prior_strength,
+        prior_scale_mode=prior_scale_mode,
+        alpha_max=alpha_max,
+        allow_prior_inversion=allow_prior_inversion,
+    )
+
+    grid = torch.linspace(0.0, 1.0, int(grid_n), device=DEVICE, dtype=DTYPE).unsqueeze(-1)
+    x_np = grid.squeeze(-1).cpu().numpy()
+    true_np = true_function(grid).squeeze(-1).cpu().numpy()
+
+    mean_flat, std_flat = posterior_stats(model_flat, grid)
+    mean_resid, std_resid = posterior_stats(gp_resid, grid)
+    mean_text, std_text = posterior_stats(gp_resid, grid, prior=prior, prior_scale=prior_scale)
+
+    m0_grid = prior.m0_torch(grid).squeeze(-1).cpu().numpy()
+    m0_scaled = prior_scale * m0_grid
+
+    train_x_np = train_x.squeeze(-1).cpu().numpy()
+    train_y_np = train_y.squeeze(-1).cpu().numpy()
+    m0_train = prior.m0_torch(train_x).reshape(-1).detach().cpu().numpy()
+    y_resid_train = train_y_np - prior_scale * m0_train
+
+    best_f = float(np.max(train_y_np)) if train_y_np.size else float("-inf")
+    ei_flat = expected_improvement(mean_flat, std_flat, best_f, xi=acq_xi)
+    ei_text = expected_improvement(mean_text, std_text, best_f, xi=acq_xi)
+    next_x_flat = float(x_np[int(np.argmax(ei_flat))])
+    next_x_text = float(x_np[int(np.argmax(ei_text))])
+
+    rh_lo, rh_hi = 0.0, 1.0
+    try:
+        rh = ((readout.get("effects") or {}).get("x1") or {}).get("range_hint")
+        if isinstance(rh, (list, tuple)) and len(rh) == 2:
+            rh_lo, rh_hi = float(rh[0]), float(rh[1])
+            rh_lo, rh_hi = float(np.clip(rh_lo, 0.0, 1.0)), float(np.clip(rh_hi, 0.0, 1.0))
+            if rh_hi < rh_lo:
+                rh_lo, rh_hi = rh_hi, rh_lo
+    except Exception:
+        pass
+
+    if verbose:
+        print("=== Hint ===")
+        print(text_hint)
+        print(f"\n=== Readout ({readout_source}) ===")
+        print(json.dumps(readout, indent=2))
+        if llm_raw is not None:
+            print("\n=== LLM Raw Output ===")
+            print(llm_raw)
+
+    readout_json = json.dumps(readout, indent=2)
+
+    return {
+        "grid": x_np,
+        "true_curve": true_np,
+        "train_x": train_x_np,
+        "train_y": train_y_np,
+        "train_y_resid": y_resid_train,
+        "mean_flat": mean_flat,
+        "std_flat": std_flat,
+        "mean_resid": mean_resid,
+        "std_resid": std_resid,
+        "mean_text": mean_text,
+        "std_text": std_text,
+        "m0_grid": m0_grid,
+        "m0_scaled": m0_scaled,
+        "ei_flat": ei_flat,
+        "ei_text": ei_text,
+        "next_x_flat": next_x_flat,
+        "next_x_text": next_x_text,
+        "best_f": best_f,
+        "hint_text": text_hint,
+        "prompt_used": prompt_used,
+        "readout": readout,
+        "readout_json": readout_json,
+        "readout_source": readout_source,
+        "llm_raw": llm_raw,
+        "prior_scale": prior_scale,
+        "prior_strength": prior_strength,
+        "prior_scale_mode": prior_scale_mode,
+        "prior_debug": prior_debug,
+        "range_hint": (rh_lo, rh_hi),
+    }
+
+
 def run_demo_(
     *,
     n_train: int = 8,
@@ -392,69 +571,37 @@ def run_demo_(
         result = run_demo(preset="right_peak", show=False)
         display(result["fig"])
     """
-    if hint is None:
-        if preset not in PRESET_HINTS:
-            raise ValueError(f"Unknown preset '{preset}'. Valid options: {sorted(PRESET_HINTS)}")
-        text_hint = PRESET_HINTS[preset]
-    else:
-        text_hint = hint
-
-    if verbose:
-        print("=== Hint ===")
-        print(text_hint)
-
-    train_x, train_y = sample_training_points(n_train, noise, seed)
-    train_x = train_x.to(DEVICE)
-    train_y = train_y.to(DEVICE)
-
-    model_flat = fit_plain_gp(train_x, train_y)
-
-    llm_raw: Optional[str] = None
-    readout_source = "heuristic"
-    if use_llm:
-        readout_source = "llm"
-        prompt_text = (llm_prompt or text_hint).strip()
-        readout, llm_raw = llm_generate_readout(
-            prompt=prompt_text,
-            model=llm_model,
-            temperature=llm_temperature,
-            max_tokens=llm_max_tokens,
-            api_key=llm_api_key,
-        )
-    else:
-        readout = parse_text_hint(text_hint)
-        readout = sanitize_readout_1d(readout)
-
-    if verbose:
-        print(f"\n=== Readout ({readout_source}) ===")
-        print(json.dumps(readout, indent=2))
-        if llm_raw is not None:
-            print("\n=== LLM Raw Output ===")
-            print(llm_raw)
-    prior = readout_to_prior(readout, feature_names=["x1"])
-
-    gp_resid, prior_scale, prior_debug = fit_text_prior_gp(
-        train_x,
-        train_y,
-        prior,
+    payload = _compute_for_demo(
+        n_train=n_train,
+        noise=noise,
+        seed=seed,
+        hint=hint,
+        preset=preset,
+        use_llm=use_llm,
+        llm_prompt=llm_prompt,
+        llm_model=llm_model,
+        llm_temperature=llm_temperature,
+        llm_max_tokens=llm_max_tokens,
+        llm_api_key=llm_api_key,
         prior_strength=prior_strength,
         prior_scale_mode=prior_scale_mode,
         alpha_max=alpha_max,
         allow_prior_inversion=allow_prior_inversion,
+        grid_n=400,
+        acq_xi=0.0,
+        verbose=verbose,
     )
 
-    grid = torch.linspace(0.0, 1.0, 400, device=DEVICE, dtype=DTYPE).unsqueeze(-1)
-    x_np = grid.squeeze(-1).cpu().numpy()
-    true_np = true_function(grid).squeeze(-1).cpu().numpy()
-    true_min, true_max = float(true_np.min()), float(true_np.max())
-    y_limits = (true_min - 0.2, true_max + 0.2)
-
-    mean_flat, std_flat = posterior_stats(model_flat, grid)
-    mean_text, std_text = posterior_stats(gp_resid, grid, prior=prior, prior_scale=prior_scale)
-    prior_curve = prior.m0_torch(grid).squeeze(-1).cpu().numpy()
-
-    train_x_np = train_x.squeeze(-1).cpu().numpy()
-    train_y_np = train_y.squeeze(-1).cpu().numpy()
+    x_np = payload["grid"]  # type: ignore[assignment]
+    true_np = payload["true_curve"]  # type: ignore[assignment]
+    train_x_np = payload["train_x"]  # type: ignore[assignment]
+    train_y_np = payload["train_y"]  # type: ignore[assignment]
+    mean_flat = payload["mean_flat"]  # type: ignore[assignment]
+    std_flat = payload["std_flat"]  # type: ignore[assignment]
+    mean_text = payload["mean_text"]  # type: ignore[assignment]
+    std_text = payload["std_text"]  # type: ignore[assignment]
+    prior_curve = payload["m0_grid"]  # type: ignore[assignment]
+    y_limits = (float(true_np.min()) - 0.2, float(true_np.max()) + 0.2)
 
     fig, axes = plt.subplots(1, 2, figsize=(12.5, 4.2), sharey=True)
     plot_gp(
@@ -503,16 +650,188 @@ def run_demo_(
         "mean_text": mean_text,
         "std_text": std_text,
         "prior_curve": prior_curve,
-        "readout": readout,
-        "readout_source": readout_source,
-        "llm_raw": llm_raw,
-        "prior_scale": prior_scale,
-        "prior_strength": prior_strength,
-        "prior_scale_mode": prior_scale_mode,
-        "prior_debug": prior_debug,
-        "hint_text": text_hint,
+        "readout": payload["readout"],
+        "readout_source": payload["readout_source"],
+        "llm_raw": payload["llm_raw"],
+        "prior_scale": payload["prior_scale"],
+        "prior_strength": payload["prior_strength"],
+        "prior_scale_mode": payload["prior_scale_mode"],
+        "prior_debug": payload["prior_debug"],
+        "hint_text": payload["hint_text"],
     }
 
 
+# out = run_demo_(
+#     n_train=3,
+#     noise=0.0,
+#     use_llm=True,
+#     llm_prompt="the trend of x is increasing with high confidence",
+#     llm_model="gpt-4o-mini",
+#     prior_strength=10,
+#     show=False,
+# )
+#%%
+
 # Backwards-compatible alias (older notebooks may import run_demo)
 run_demo = run_demo_
+
+
+def run_demo_multipanel_(
+    *,
+    n_train: int = 8,
+    noise: float = 0.03,
+    seed: int = 0,
+    hint: Optional[str] = None,
+    preset: str = "left_peak",
+    use_llm: bool = False,
+    llm_prompt: Optional[str] = None,
+    llm_model: str = "gpt-4o-mini",
+    llm_temperature: float = 0.2,
+    llm_max_tokens: int = 600,
+    llm_api_key: Optional[str] = None,
+    prior_strength: float = 1.0,
+    prior_scale_mode: str = "learned",
+    alpha_max: float = 2.0,
+    allow_prior_inversion: bool = False,
+    acq_xi: float = 0.0,
+    grid_n: int = 600,
+    figsize: Tuple[float, float] = (12.5, 7.0),
+    save_path: Optional[str] = None,
+    show: bool = True,
+    verbose: bool = False,
+    manuscript_style: bool = True,
+    print_prompt_and_readout: bool = True,
+) -> Dict[str, object]:
+    """Manuscript-ready 2x2 panel figure showing prior→posterior→acquisition.
+
+    Layout:
+      - Top-left: prior mean (former panel C)
+      - Top-right: blank white space for your text
+      - Bottom-left: posterior comparison (former panel E)
+      - Bottom-right: acquisition impact (former panel F)
+    """
+    if manuscript_style:
+        set_manuscript_style()
+
+    payload = _compute_for_demo(
+        n_train=n_train,
+        noise=noise,
+        seed=seed,
+        hint=hint,
+        preset=preset,
+        use_llm=use_llm,
+        llm_prompt=llm_prompt,
+        llm_model=llm_model,
+        llm_temperature=llm_temperature,
+        llm_max_tokens=llm_max_tokens,
+        llm_api_key=llm_api_key,
+        prior_strength=prior_strength,
+        prior_scale_mode=prior_scale_mode,
+        alpha_max=alpha_max,
+        allow_prior_inversion=allow_prior_inversion,
+        grid_n=grid_n,
+        acq_xi=acq_xi,
+        verbose=verbose,
+    )
+
+    if print_prompt_and_readout:
+        print("----- PROMPT (copy) -----")
+        print(str(payload.get("prompt_used", "")))
+        print("\n----- READOUT JSON (copy) -----")
+        print(str(payload.get("readout_json", "")))
+        llm_raw = payload.get("llm_raw")
+        if llm_raw:
+            print("\n----- LLM RAW OUTPUT (debug) -----")
+            print(str(llm_raw))
+
+    x = payload["grid"]  # type: ignore[assignment]
+    y_true = payload["true_curve"]  # type: ignore[assignment]
+    x_obs = payload["train_x"]  # type: ignore[assignment]
+    y_obs = payload["train_y"]  # type: ignore[assignment]
+
+    mean_flat = payload["mean_flat"]  # type: ignore[assignment]
+    std_flat = payload["std_flat"]  # type: ignore[assignment]
+    mean_text = payload["mean_text"]  # type: ignore[assignment]
+    std_text = payload["std_text"]  # type: ignore[assignment]
+    m0 = payload["m0_grid"]  # type: ignore[assignment]
+    m0_scaled = payload["m0_scaled"]  # type: ignore[assignment]
+    ei_flat = payload["ei_flat"]  # type: ignore[assignment]
+    ei_text = payload["ei_text"]  # type: ignore[assignment]
+    next_x_flat = payload["next_x_flat"]  # type: ignore[assignment]
+    next_x_text = payload["next_x_text"]  # type: ignore[assignment]
+    rh_lo, rh_hi = payload["range_hint"]  # type: ignore[misc]
+
+    y_limits = (float(np.min(y_true)) - 0.2, float(np.max(y_true)) + 0.2)
+
+    fig, axs = plt.subplots(2, 2, figsize=figsize, constrained_layout=True)
+    ax_text, ax_prior, ax_post, ax_acq = axs.flatten().tolist()
+
+    # Top-left: Blank space for manuscript text
+    ax_text.axis("off")
+
+    # Top-right: Prior mean
+    ax_prior.axvspan(rh_lo, rh_hi, color=COLORS["prior"], alpha=0.12, label="Hint window")
+    ax_prior.plot(x, m0, color=COLORS["prior"], ls="--", lw=1.6, label="Raw $m_0(x)$")
+    ax_prior.plot(x, m0_scaled, color=COLORS["prior"], lw=2.2, label="Scaled contribution")
+    ax_prior.set_title("Prior Mean")
+    ax_prior.set(xlabel="x", ylabel="prior", xlim=(0.0, 1.0))
+    ax_prior.grid(True, alpha=0.2)
+    ax_prior.legend(loc="best")
+
+    # Bottom-left: Posterior comparison (former panel E)
+    ax_post.plot(x, y_true, color="k", lw=1.2, alpha=0.7, label="True function")
+    ax_post.scatter(x_obs, y_obs, color=COLORS["obs"], edgecolors="k", zorder=5, label="Observations")
+    ax_post.plot(x, mean_flat, color=COLORS["baseline"], lw=2.0, label="Baseline mean")
+    ax_post.fill_between(
+        x,
+        mean_flat - 2 * std_flat,
+        mean_flat + 2 * std_flat,
+        color=COLORS["baseline"],
+        alpha=0.15,
+    )
+    ax_post.plot(x, mean_text, color=COLORS["shaped"], lw=2.0, label="Language-shaped mean")
+    ax_post.fill_between(
+        x,
+        mean_text - 2 * std_text,
+        mean_text + 2 * std_text,
+        color=COLORS["shaped"],
+        alpha=0.15,
+    )
+    ax_post.axvspan(rh_lo, rh_hi, color=COLORS["prior"], alpha=0.08)
+    ax_post.set_title("Posterior Comparison")
+    ax_post.set(xlabel="x", ylabel="y", xlim=(0.0, 1.0), ylim=y_limits)
+    ax_post.grid(True, alpha=0.2)
+    ax_post.legend(loc="best")
+
+    # Bottom-right: Acquisition impact (former panel F)
+    ax_acq.plot(x, ei_flat, color=COLORS["baseline"], lw=2.0, label="EI (baseline)")
+    ax_acq.plot(x, ei_text, color=COLORS["shaped"], lw=2.0, label="EI (shaped)")
+    ax_acq.axvline(next_x_flat, color=COLORS["baseline"], lw=1.2, ls="--", alpha=0.8, label="Next (baseline)")
+    ax_acq.axvline(next_x_text, color=COLORS["shaped"], lw=1.2, ls="--", alpha=0.8, label="Next (shaped)")
+    ax_acq.axvspan(rh_lo, rh_hi, color=COLORS["prior"], alpha=0.08)
+    ax_acq.set_title("Optimization Impact (EI)")
+    ax_acq.set(xlabel="x", ylabel="EI", xlim=(0.0, 1.0))
+    ax_acq.grid(True, alpha=0.2)
+    ax_acq.legend(loc="best")
+
+    if save_path:
+        fig.savefig(save_path, bbox_inches="tight")
+
+    if show:
+        plt.show()
+
+    return {"fig": fig, "axes": axs, "text_ax": ax_text, **payload}
+
+
+out = run_demo_multipanel_(
+    n_train=3,
+    preset="left_peak",
+    prior_strength=0.4,
+    show=False,
+)
+
+# add your manuscript text into the blank panel
+out["text_ax"].text(0, 1, "Your text here...", va="top", ha="left", transform=out["text_ax"].transAxes)
+out["fig"]
+
+#%%
