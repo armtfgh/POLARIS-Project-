@@ -550,6 +550,9 @@ def compare_methods_continuous(
     domain: ContinuousDomain,
     *,
     n_init: int = 6,
+    baseline_n_init: Optional[int] = None,
+    hybrid_n_init: Optional[int] = None,
+    random_n_init: Optional[int] = None,
     n_iter: int = 25,
     seed: int = 0,
     repeats: int = 1,
@@ -567,16 +570,20 @@ def compare_methods_continuous(
     prompt_profiles = prompt_profiles or ["perfect"]
     dfs: List[pd.DataFrame] = []
 
+    n_init_random = int(n_init if random_n_init is None else random_n_init)
+    n_init_baseline = int(n_init if baseline_n_init is None else baseline_n_init)
+    n_init_hybrid = int(n_init if hybrid_n_init is None else hybrid_n_init)
+
     prior_debug_runs: List[Dict[str, Any]] = [] if diagnose_prior else []
 
     for r in range(repeats):
         current_seed = seed + r
 
-        rand = run_random_continuous(domain, n_init=n_init, n_iter=n_iter, seed=current_seed)
+        rand = run_random_continuous(domain, n_init=n_init_random, n_iter=n_iter, seed=current_seed)
         rand["seed"] = current_seed
         dfs.append(rand)
 
-        base = run_baseline_ei_continuous(domain, n_init=n_init, n_iter=n_iter, seed=current_seed)
+        base = run_baseline_ei_continuous(domain, n_init=n_init_baseline, n_iter=n_iter, seed=current_seed)
         base["seed"] = current_seed
         dfs.append(base)
 
@@ -587,7 +594,7 @@ def compare_methods_continuous(
                     print(f"[Hybrid] continuous seed={current_seed} using readout '{profile}'")
                     hyb = run_hybrid_continuous(
                         domain,
-                        n_init=n_init,
+                        n_init=n_init_hybrid,
                         n_iter=n_iter,
                         seed=current_seed,
                         readout_source="llm",
@@ -609,7 +616,7 @@ def compare_methods_continuous(
                 print(f"[Hybrid] continuous seed={current_seed} using flat readout")
                 hyb = run_hybrid_continuous(
                     domain,
-                    n_init=n_init,
+                    n_init=n_init_hybrid,
                     n_iter=n_iter,
                     seed=current_seed,
                     readout_source=readout_source,
@@ -1446,13 +1453,20 @@ def compare_methods_from_csv(lookup: LookupTable, n_init: int = 6, n_iter: int =
                              repeats: int = 1, include_hybrid: bool = True, readout_source: str = "flat",
                              init_method: str = "random", prompt_profiles = ["perfect"] ,diagnose_prior: bool = False,
                              prior_strength: float = 1.0, rho_floor: float = 0.05,
-                             early_prior_boost: bool = False, early_prior_steps: int = 5) -> pd.DataFrame:
+                             early_prior_boost: bool = False, early_prior_steps: int = 5,
+                             baseline_n_init: Optional[int] = None,
+                             hybrid_n_init: Optional[int] = None,
+                             random_n_init: Optional[int] = None) -> pd.DataFrame:
     if isinstance(prompt_profiles, str):
         prompt_profiles = [prompt_profiles]
     dfs: List[pd.DataFrame] = []
-    rand = run_random_lookup(lookup, n_init=n_init, n_iter=n_iter, seed=seed,
+    n_init_random = int(n_init if random_n_init is None else random_n_init)
+    n_init_baseline = int(n_init if baseline_n_init is None else baseline_n_init)
+    n_init_hybrid = int(n_init if hybrid_n_init is None else hybrid_n_init)
+
+    rand = run_random_lookup(lookup, n_init=n_init_random, n_iter=n_iter, seed=seed,
                              repeats=repeats, init_method=init_method)
-    base = run_baseline_ei_lookup(lookup, n_init=n_init, n_iter=n_iter, seed=seed,
+    base = run_baseline_ei_lookup(lookup, n_init=n_init_baseline, n_iter=n_iter, seed=seed,
                                   repeats=repeats, init_method=init_method)
     dfs.extend([rand, base])
     hybrid_debug: List[Dict[str, Any]] = []
@@ -1461,7 +1475,7 @@ def compare_methods_from_csv(lookup: LookupTable, n_init: int = 6, n_iter: int =
             for profile in prompt_profiles:
                 method_label = f"hybrid_{profile}"
                 print(f"[Hybrid] lookup using readout '{profile}'")
-                hyb = run_hybrid_lookup(lookup, n_init=n_init, n_iter=n_iter, seed=seed, repeats=repeats,
+                hyb = run_hybrid_lookup(lookup, n_init=n_init_hybrid, n_iter=n_iter, seed=seed, repeats=repeats,
                                         init_method=init_method, readout_source="llm",
                                         diagnose_prior=diagnose_prior, prompt_profile=profile,
                                         method_tag=method_label,
@@ -1477,7 +1491,7 @@ def compare_methods_from_csv(lookup: LookupTable, n_init: int = 6, n_iter: int =
         else:
             method_label = "hybrid_flat"
             print("[Hybrid] lookup using flat readout")
-            hyb = run_hybrid_lookup(lookup, n_init=n_init, n_iter=n_iter, seed=seed, repeats=repeats,
+            hyb = run_hybrid_lookup(lookup, n_init=n_init_hybrid, n_iter=n_iter, seed=seed, repeats=repeats,
                                     init_method=init_method, readout_source=readout_source,
                                     diagnose_prior=diagnose_prior, prompt_profile="perfect",
                                     method_tag=method_label,
@@ -1749,12 +1763,14 @@ if __name__ == "__main__":
     hist = compare_methods_continuous(
         domain,
         n_init=5,
+        hybrid_n_init=5,
+        baseline_n_init=500,
         n_iter=20,
         seed=41,
         repeats=3,
         include_hybrid=True,
         readout_source="llm",
-        prompt_profiles="bad",
+        prompt_profiles="good",
         early_prior_boost=True,
         early_prior_steps=5,
         diagnose_prior=True,
@@ -1762,29 +1778,29 @@ if __name__ == "__main__":
     plot_runs_mean_lookup(hist)
 
 
-#%%
-#visualization
-truth_df = pd.read_csv("ugi_merged_dataset.csv")
+    #%%
+    # visualization
+    truth_df = pd.read_csv("ugi_merged_dataset.csv")
 
-feature_subset = domain.feature_names[:2]
-methods_to_show = [m for m in ["random", "baseline_ei"] if m in hist["method"].unique()]
-if "hybrid_bad" in hist["method"].unique():
-    methods_to_show.append("hybrid_bad")
-if "hybrid_best" in hist["method"].unique():
-    methods_to_show.append("hybrid_best")    
-if methods_to_show and feature_subset:
-    plot_parameter_violin_from_history(
-        hist,
-        methods=methods_to_show,
-        feature_cols=[f"x{domain.feature_names.index(name)+1}" for name in feature_subset],
-        truth_df=truth_df,
-    )
-    plot_method_2d_hist(
-        hist,
-        feature_x=f"x{domain.feature_names.index(feature_subset[0])+1}",
-        feature_y=f"x{domain.feature_names.index(feature_subset[1])+1}",
-        methods=methods_to_show,
-    )
-#%%
+    feature_subset = domain.feature_names[:2]
+    methods_to_show = [m for m in ["random", "baseline_ei"] if m in hist["method"].unique()]
+    if "hybrid_bad" in hist["method"].unique():
+        methods_to_show.append("hybrid_bad")
+    if "hybrid_best" in hist["method"].unique():
+        methods_to_show.append("hybrid_best")
+    if methods_to_show and feature_subset:
+        plot_parameter_violin_from_history(
+            hist,
+            methods=methods_to_show,
+            feature_cols=[f"x{domain.feature_names.index(name)+1}" for name in feature_subset],
+            truth_df=truth_df,
+        )
+        plot_method_2d_hist(
+            hist,
+            feature_x=f"x{domain.feature_names.index(feature_subset[0])+1}",
+            feature_y=f"x{domain.feature_names.index(feature_subset[1])+1}",
+            methods=methods_to_show,
+        )
+    #%%
 
-# debug_runs = hist.attrs.get("prior_debug_runs", [])
+    # debug_runs = hist.attrs.get("prior_debug_runs", [])
