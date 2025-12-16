@@ -1754,7 +1754,7 @@ if __name__ == "__main__":
         repeats=3,
         include_hybrid=True,
         readout_source="llm",
-        prompt_profiles="best",
+        prompt_profiles="bad",
         early_prior_boost=True,
         early_prior_steps=5,
         diagnose_prior=True,
@@ -1763,27 +1763,28 @@ if __name__ == "__main__":
 
 
 #%%
-    truth_df = pd.read_csv("ugi_merged_dataset.csv")
+#visualization
+truth_df = pd.read_csv("ugi_merged_dataset.csv")
 
-    feature_subset = domain.feature_names[:2]
-    methods_to_show = [m for m in ["random", "baseline_ei"] if m in hist["method"].unique()]
-    if "hybrid_bad" in hist["method"].unique():
-        methods_to_show.append("hybrid_bad")
-    if "hybrid_best" in hist["method"].unique():
-        methods_to_show.append("hybrid_best")    
-    if methods_to_show and feature_subset:
-        plot_parameter_violin_from_history(
-            hist,
-            methods=methods_to_show,
-            feature_cols=[f"x{domain.feature_names.index(name)+1}" for name in feature_subset],
-            truth_df=truth_df,
-        )
-        plot_method_2d_hist(
-            hist,
-            feature_x=f"x{domain.feature_names.index(feature_subset[0])+1}",
-            feature_y=f"x{domain.feature_names.index(feature_subset[1])+1}",
-            methods=methods_to_show,
-        )
+feature_subset = domain.feature_names[:2]
+methods_to_show = [m for m in ["random", "baseline_ei"] if m in hist["method"].unique()]
+if "hybrid_bad" in hist["method"].unique():
+    methods_to_show.append("hybrid_bad")
+if "hybrid_best" in hist["method"].unique():
+    methods_to_show.append("hybrid_best")    
+if methods_to_show and feature_subset:
+    plot_parameter_violin_from_history(
+        hist,
+        methods=methods_to_show,
+        feature_cols=[f"x{domain.feature_names.index(name)+1}" for name in feature_subset],
+        truth_df=truth_df,
+    )
+    plot_method_2d_hist(
+        hist,
+        feature_x=f"x{domain.feature_names.index(feature_subset[0])+1}",
+        feature_y=f"x{domain.feature_names.index(feature_subset[1])+1}",
+        methods=methods_to_show,
+    )
 #%%
 
 # debug_runs = hist.attrs.get("prior_debug_runs", [])
