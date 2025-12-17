@@ -109,6 +109,45 @@ PROMPT_LIBRARY = {
     "best": SYS_PROMPTS_BEST,
 }
 
+# ====================================================================
+#                     SAFETY: TRUST FILTER (Z-SCORE)
+# ====================================================================
+
+def check_prior_consistency(
+    prior_mean_val: float,
+    prior_std_val: float,
+    observed_y: float,
+    noise_std: float = 0.01,
+) -> float:
+    """
+    Returns a 'Surprise' score (absolute Z-score).
+    High score = prior prediction contradicts observation.
+    """
+    total_uncertainty = float(np.sqrt(float(prior_std_val) ** 2 + float(noise_std) ** 2))
+    total_uncertainty = max(total_uncertainty, 1e-12)
+    z_score = (float(observed_y) - float(prior_mean_val)) / total_uncertainty
+    return float(abs(z_score))
+
+
+def _estimate_obs_scale(y_obs: Tensor, *, floor: float = 0.02) -> float:
+    y = y_obs.reshape(-1).detach()
+    if y.numel() < 2:
+        return float(floor)
+    std = float(torch.std(y, unbiased=True).item())
+    rng = float((y.max() - y.min()).item())
+    scale = max(std, 0.25 * rng)
+    return float(max(scale, floor))
+
+
+def _alpha_through_origin(X: Tensor, Y: Tensor, prior: Prior) -> float:
+    """Scale prior mean into Y units via least squares through the origin."""
+    m0 = prior.m0_torch(X).reshape(-1)
+    yv = Y.reshape(-1)
+    denom = float(torch.dot(m0, m0).item())
+    if denom <= 0.0:
+        return 0.0
+    return float(torch.dot(m0, yv).item() / (denom + 1e-12))
+
 # Global control so every campaign uses the same Sobol initialization batch.
 # Leave as None for per-run randomness; set to an int only if you explicitly
 # want all campaigns (and seeds) to start from the exact same Sobol picks.
@@ -467,6 +506,9 @@ def run_hybrid_continuous(
 
     prior = readout_to_prior(ro0, feature_names=domain.feature_names)
     prior_debug: Optional[List[Dict[str, Any]]] = [] if diagnose_prior else None
+    prior_trust = 1.0
+    trust_z_threshold = 3.0
+    trust_noise_std = 0.01
 
     for t in range(n_iter):
         pool = _sample_unit_pool(domain.unit_bounds, max(pool_size, 1024), seed + 505 + t)
@@ -482,14 +524,42 @@ def run_hybrid_continuous(
             best = max(best, y_value)
             rec = _record_continuous_sample(domain, x_next, y_value, best, method="hybrid", iteration=t)
             rec["prior_boost"] = True
+            used_prior_boost = (prior_trust > 0.0) and (float(prior_strength) != 0.0)
+            rec["prior_used"] = bool(used_prior_boost)
+            rec["prior_trust"] = float(prior_trust)
+            rec["prior_surprise"] = float("nan")
+            if used_prior_boost:
+                alpha_trust = _alpha_through_origin(X_obs[:-1], Y_obs[:-1], prior)
+                prior_mean_pred = float(alpha_trust * float(prior_strength) * float(prior_trust) * prior.m0_torch(x_next).item())
+                prior_std = _estimate_obs_scale(Y_obs[:-1], floor=0.02)
+                surprise = check_prior_consistency(
+                    prior_mean_val=prior_mean_pred,
+                    prior_std_val=prior_std,
+                    observed_y=y_value,
+                    noise_std=trust_noise_std,
+                )
+                rec["prior_surprise"] = float(surprise)
+                if surprise > trust_z_threshold:
+                    prior_trust = 0.0
+                rec["prior_trust"] = float(prior_trust)
             recs.append(rec)
             continue
 
-        gp_resid, alpha = fit_residual_gp(X_obs, Y_obs, prior)
-        rho = alignment_on_obs(X_obs, Y_obs, prior)
-        rho_weight = max(abs(float(rho)), rho_floor)
-        m0_scale = float(alpha * prior_strength * rho_weight)
-        model_total = GPWithPriorMean(gp_resid, prior, m0_scale=m0_scale)
+        used_prior = (prior_trust > 0.0) and (float(prior_strength) != 0.0)
+        rho = float("nan")  # kept for backward-compatible diagnostics only
+        rho_weight = 1.0
+
+        if used_prior:
+            gp_resid, alpha = fit_residual_gp(X_obs, Y_obs, prior)
+            m0_scale = float(alpha * prior_strength * prior_trust)
+            model_total = GPWithPriorMean(gp_resid, prior, m0_scale=m0_scale)
+        else:
+            alpha = 0.0
+            m0_scale = 0.0
+            gp_plain = SingleTaskGP(X_obs, Y_obs)
+            mll_plain = ExactMarginalLogLikelihood(gp_plain.likelihood, gp_plain)
+            fit_gpytorch_mll(mll_plain)
+            model_total = gp_plain
 
         EI = ExpectedImprovement(model=model_total, best_f=float(Y_obs.max().item()), maximize=True)
         x_next, _ = optimize_acqf(
@@ -507,7 +577,27 @@ def run_hybrid_continuous(
 
         y_value = float(y_next.item())
         best = max(best, y_value)
-        recs.append(_record_continuous_sample(domain, x_next, y_value, best, method="hybrid", iteration=t))
+        rec = _record_continuous_sample(domain, x_next, y_value, best, method="hybrid", iteration=t)
+        rec["prior_used"] = bool(used_prior)
+        rec["prior_trust"] = float(prior_trust)
+        rec["prior_surprise"] = float("nan")
+
+        if used_prior:
+            alpha_trust = _alpha_through_origin(X_obs[:-1], Y_obs[:-1], prior)
+            prior_mean_pred = float(alpha_trust * float(prior_strength) * float(prior_trust) * prior.m0_torch(x_next).item())
+            prior_std = _estimate_obs_scale(Y_obs[:-1], floor=0.02)
+            surprise = check_prior_consistency(
+                prior_mean_val=prior_mean_pred,
+                prior_std_val=prior_std,
+                observed_y=y_value,
+                noise_std=trust_noise_std,
+            )
+            rec["prior_surprise"] = float(surprise)
+            if surprise > trust_z_threshold:
+                prior_trust = 0.0
+            rec["prior_trust"] = float(prior_trust)
+
+        recs.append(rec)
 
         if diagnose_prior and prior_debug is not None:
             gp_plain = SingleTaskGP(X_obs, Y_obs)
@@ -537,6 +627,7 @@ def run_hybrid_continuous(
                     "rho": float(rho),
                     "rho_weight": float(rho_weight),
                     "m0_scale": float(m0_scale),
+                    "prior_trust": float(prior_trust),
                 }
             )
 
@@ -1225,7 +1316,9 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
     else:
         ro0 = flat_readout(feature_names=lookup.feature_names)
     prior = readout_to_prior(ro0, feature_names=lookup.feature_names)
-    m0_w = 1.0
+    prior_trust = 1.0
+    trust_z_threshold = 3.0
+    trust_noise_std = 0.01
 
     status_log: List[Dict[str, Any]] = []
     if log_json_path is not None and readout_source == "llm":
@@ -1274,14 +1367,42 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
                                  method=method_label, feature_names=lookup.feature_names)
             row["iter"] = t
             row["prior_boost"] = True
+            used_prior_boost = (prior_trust > 0.0) and (float(prior_strength) != 0.0)
+            row["prior_used"] = bool(used_prior_boost)
+            row["prior_trust"] = float(prior_trust)
+            row["prior_surprise"] = float("nan")
+            if used_prior_boost:
+                alpha_trust = _alpha_through_origin(X_obs[:-1], Y_obs[:-1].unsqueeze(-1), prior)
+                prior_mean_pred = float(alpha_trust * float(prior_strength) * float(prior_trust) * prior.m0_torch(lookup.X[pick]).item())
+                prior_std = _estimate_obs_scale(Y_obs[:-1], floor=0.02)
+                surprise = check_prior_consistency(
+                    prior_mean_val=prior_mean_pred,
+                    prior_std_val=prior_std,
+                    observed_y=y,
+                    noise_std=trust_noise_std,
+                )
+                row["prior_surprise"] = float(surprise)
+                if surprise > trust_z_threshold:
+                    prior_trust = 0.0
+                row["prior_trust"] = float(prior_trust)
             rec.append(row)
             continue
 
-        gp_resid, alpha = fit_residual_gp(X_obs, Y_obs2, prior)
-        rho = alignment_on_obs(X_obs, Y_obs2, prior)
-        rho_weight = max(abs(float(rho)), rho_floor)
-        m0_scale = float(alpha * m0_w * prior_strength * rho_weight)
-        model_total = GPWithPriorMean(gp_resid, prior, m0_scale=m0_scale)
+        used_prior = (prior_trust > 0.0) and (float(prior_strength) != 0.0)
+        rho = float("nan")  # kept for backward-compatible diagnostics only
+        rho_weight = 1.0
+
+        if used_prior:
+            gp_resid, alpha = fit_residual_gp(X_obs, Y_obs2, prior)
+            m0_scale = float(alpha * prior_trust * prior_strength)
+            model_total = GPWithPriorMean(gp_resid, prior, m0_scale=m0_scale)
+        else:
+            alpha = 0.0
+            m0_scale = 0.0
+            gp_plain = SingleTaskGP(X_obs, Y_obs2)
+            mll_plain = ExactMarginalLogLikelihood(gp_plain.likelihood, gp_plain)
+            fit_gpytorch_mll(mll_plain)
+            model_total = gp_plain
 
         with torch.no_grad():
             train_post = model_total.posterior(X_obs.unsqueeze(1))
@@ -1317,6 +1438,7 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
                 "rho": float(rho),
                 "rho_weight": float(rho_weight),
                 "m0_scale": float(m0_scale),
+                "prior_trust": float(prior_trust),
                 "hybrid_ei": float(ei_vals[idx_local].item()),
                 "baseline_ei": float(ei_plain_vals[idx_plain_local].item()),
                 "prior_mean_hybrid": float(prior_vals[idx_local].item()),
@@ -1332,6 +1454,20 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
                 print(f"[prior-diagnostics] seed={seed} iter={t} hybrid_idx={pick} baseline_idx={pick_plain} same={pick == pick_plain}")
 
         y = float(lookup.y[pick].item())
+        row_prior_surprise: Optional[float] = None
+        if used_prior:
+            alpha_trust = _alpha_through_origin(X_obs, Y_obs2, prior)
+            prior_mean_pred = float(alpha_trust * float(prior_strength) * float(prior_trust) * prior.m0_torch(lookup.X[pick]).item())
+            prior_std = _estimate_obs_scale(Y_obs, floor=0.02)
+            row_prior_surprise = check_prior_consistency(
+                prior_mean_val=prior_mean_pred,
+                prior_std_val=prior_std,
+                observed_y=y,
+                noise_std=trust_noise_std,
+            )
+            if row_prior_surprise > trust_z_threshold:
+                prior_trust = 0.0
+
         best_running = max(best_running, y)
         seen.add(pick)
         X_obs = torch.cat([X_obs, lookup.X[pick].unsqueeze(0)], dim=0)
@@ -1340,6 +1476,9 @@ def _run_hybrid_lookup_single(lookup: LookupTable, *, n_init: int, n_iter: int, 
         row = as_records_row(pick, lookup.X_raw[pick], y, best_running,
                              method=method_label, feature_names=lookup.feature_names)
         row["iter"] = t
+        row["prior_used"] = bool(used_prior)
+        row["prior_trust"] = float(prior_trust)
+        row["prior_surprise"] = float(row_prior_surprise) if row_prior_surprise is not None else float("nan")
         rec.append(row)
 
     if log_json_path is not None and readout_source == "llm":
@@ -1568,6 +1707,91 @@ def plot_runs_mean_lookup(hist_df: pd.DataFrame, *, methods: Optional[List[str]]
     return ax
 
 
+def plot_trust_filter(
+    hist_df: pd.DataFrame,
+    *,
+    method: Optional[str] = None,
+    seed: Optional[int] = None,
+    z_threshold: float = 3.0,
+    ax: Optional[np.ndarray] = None,
+    title: Optional[str] = None,
+) -> np.ndarray:
+    """Visualize the trust filter (prior_surprise + prior_trust) over iterations.
+
+    Works on either:
+    - A single-run DataFrame (e.g. output of run_hybrid_continuous / run_hybrid_lookup), or
+    - A long-form multi-run DataFrame (e.g. output of compare_methods_from_csv), optionally filtered by method/seed.
+
+    Requires columns: iter, prior_surprise, prior_trust. If missing, raises ValueError.
+    """
+    required = {"iter", "prior_surprise", "prior_trust"}
+    missing = [c for c in required if c not in hist_df.columns]
+    if missing:
+        raise ValueError(f"plot_trust_filter requires columns {sorted(required)}; missing={missing}")
+
+    df = hist_df.copy()
+    df = df[df["iter"] >= 0]
+
+    if "method" in df.columns:
+        if method is None:
+            # pick a sensible default (first hybrid-like label if present)
+            candidates = [m for m in df["method"].dropna().unique().tolist() if "hybrid" in str(m)]
+            method = candidates[0] if candidates else df["method"].dropna().unique().tolist()[0]
+        df = df[df["method"] == method]
+
+    if seed is not None and "seed" in df.columns:
+        df = df[df["seed"] == seed]
+
+    if ax is None:
+        _, axes = plt.subplots(2, 1, figsize=(8.5, 5.5), sharex=True)
+    else:
+        axes = ax
+
+    if df.empty:
+        axes[0].set_title("Trust filter (no data after filtering)")
+        return axes
+
+    def _plot_one(sub: pd.DataFrame, *, label: Optional[str] = None, alpha: float = 0.35) -> None:
+        x = sub["iter"].to_numpy()
+        trust = sub["prior_trust"].to_numpy(dtype=float)
+        surprise = sub["prior_surprise"].to_numpy(dtype=float)
+        axes[0].step(x, trust, where="post", alpha=alpha, label=label)
+        axes[0].set_ylabel("prior_trust")
+        axes[0].set_ylim(-0.05, 1.05)
+        axes[1].plot(x, surprise, marker="o", markersize=3.2, linewidth=1.0, alpha=alpha, label=label)
+
+    if "seed" in df.columns and seed is None:
+        for s, sub in df.groupby("seed", sort=True):
+            _plot_one(sub.sort_values("iter"), label=f"seed={int(s)}", alpha=0.25)
+        # mean line (helpful when there are many seeds)
+        mean_df = (
+            df.groupby("iter", sort=True)[["prior_trust", "prior_surprise"]]
+            .mean()
+            .reset_index()
+            .sort_values("iter")
+        )
+        _plot_one(mean_df, label="mean", alpha=0.95)
+        axes[0].legend(loc="best", fontsize=8, ncol=2)
+    else:
+        _plot_one(df.sort_values("iter"), label=None, alpha=0.95)
+
+    axes[1].axhline(float(z_threshold), color="tab:red", linestyle="--", linewidth=1.0)
+    axes[1].axhline(float(-z_threshold), color="tab:red", linestyle="--", linewidth=1.0)
+    axes[1].set_ylabel("|Z| (prior_surprise)")
+    axes[1].set_xlabel("Iteration")
+    axes[1].grid(True, alpha=0.35)
+    axes[0].grid(True, alpha=0.35)
+
+    if title is None:
+        base = "Trust filter"
+        if "method" in hist_df.columns and method is not None:
+            base += f" ({method})"
+        title = base
+    axes[0].set_title(title)
+    plt.tight_layout()
+    return axes
+
+
 def attach_lookup_truth(hist_df: pd.DataFrame, lookup: LookupTable) -> Tuple[pd.DataFrame, pd.DataFrame, str]:
     """Attach raw feature values and the lookup-table objective to each BO selection."""
     feature_cols = list(lookup.feature_names)
@@ -1763,44 +1987,20 @@ if __name__ == "__main__":
     hist = compare_methods_continuous(
         domain,
         n_init=5,
-        hybrid_n_init=1,
+        hybrid_n_init=5,
         baseline_n_init=5,
         n_iter=20,
-        seed=42,
+        seed=43,
         repeats=3,
         include_hybrid=True,
         readout_source="llm",
-        prompt_profiles="best",
+        prompt_profiles="bad",
         early_prior_boost=True,
         early_prior_steps=5,
         diagnose_prior=True,
     )
     plot_runs_mean_lookup(hist)
 
-
-    #%%A
-    # visualization
-    truth_df = pd.read_csv("ugi_merged_dataset.csv")
-
-    feature_subset = domain.feature_names[:2]
-    methods_to_show = [m for m in ["random", "baseline_ei"] if m in hist["method"].unique()]
-    if "hybrid_bad" in hist["method"].unique():
-        methods_to_show.append("hybrid_bad")
-    if "hybrid_best" in hist["method"].unique():
-        methods_to_show.append("hybrid_best")
-    if methods_to_show and feature_subset:
-        plot_parameter_violin_from_history(
-            hist,
-            methods=methods_to_show,
-            feature_cols=[f"x{domain.feature_names.index(name)+1}" for name in feature_subset],
-            truth_df=truth_df,
-        )
-        plot_method_2d_hist(
-            hist,
-            feature_x=f"x{domain.feature_names.index(feature_subset[0])+1}",
-            feature_y=f"x{domain.feature_names.index(feature_subset[1])+1}",
-            methods=methods_to_show,
-        )
     #%%
 
     # debug_runs = hist.attrs.get("prior_debug_runs", [])

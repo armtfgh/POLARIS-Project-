@@ -130,6 +130,7 @@ Focus on balanced reagent stoichiometry and ptSA titration experiments:
 SYS_PROMPTS_CUSTOM_GOOD = SYS_PROMPTS_GOOD
 
 
+
 SYS_PROMPTS_BEST = _prompt_template(
     """
 Use the absolute best experimental run as the anchor. The highest observed yield (≈0.156) occurs for:
@@ -142,3 +143,18 @@ Instructions:
 - Interactions: emphasise that keeping x1 clamped at the floor enables x3 saturation; any drift in x4 must stay coupled to high x2/x3.
 """
 )
+
+
+
+# SYS_PROMPTS_BEST = _prompt_template(
+#     """
+# Use the absolute best experimental run as the anchor. The highest observed yield (≈0.156) occurs for:
+#     x1 ≈ 120 mM (amine), x2 ≈ 270 mM (aldehyde), x3 ≈ 300 mM (isocyanide), x4 ≈ 0.120 ptSA.
+
+# Instructions:
+# - Force extremely tight range hints around those values: x1 in [118, 125], x2 in [265, 305], x3 in [295, 300], x4 in [0.11, 0.13].
+# - Treat x1 as strongly decreasing outside that window (scale≈1.0). x2 and x3 should be “increasing” with high confidence but saturate in that precise range. x4 must be “nonmonotone-peak” centred at 0.120 with sigma ≈0.005.
+# - Add a single Gaussian bump exactly at [120, 270, 300, 0.120] with sigma matching those narrow windows.
+# - Interactions: emphasise that keeping x1 clamped at the floor enables x3 saturation; any drift in x4 must stay coupled to high x2/x3.
+# """
+# )

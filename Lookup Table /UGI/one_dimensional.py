@@ -825,7 +825,7 @@ def run_demo_multipanel_(
 
 out = run_demo_multipanel_(
     n_train=3,
-    preset="right_peak",
+    preset="left_peak",
     prior_strength=0.4,
     show=False,
 )
