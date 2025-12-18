@@ -133,14 +133,23 @@ SYS_PROMPTS_CUSTOM_GOOD = SYS_PROMPTS_GOOD
 
 SYS_PROMPTS_BEST = _prompt_template(
     """
-Use the absolute best experimental run as the anchor. The highest observed yield (≈0.156) occurs for:
-    x1 ≈ 120 mM (amine), x2 ≈ 270 mM (aldehyde), x3 ≈ 300 mM (isocyanide), x4 ≈ 0.120 ptSA.
+The analysis of the UGI reaction data reveals several insights into the chemical landscape:
 
-Instructions:
-- Force extremely tight range hints around those values: x1 in [118, 125], x2 in [265, 305], x3 in [295, 300], x4 in [0.11, 0.13].
-- Treat x1 as strongly decreasing outside that window (scale≈1.0). x2 and x3 should be “increasing” with high confidence but saturate in that precise range. x4 must be “nonmonotone-peak” centred at 0.120 with sigma ≈0.005.
-- Add a single Gaussian bump exactly at [120, 270, 300, 0.120] with sigma matching those narrow windows.
-- Interactions: emphasise that keeping x1 clamped at the floor enables x3 saturation; any drift in x4 must stay coupled to high x2/x3.
+1. **Primary Drivers**:
+   - **x2 (Aldehyde)** and **x3 (Isocyanide)** are the primary drivers of the reaction yield. Both variables exhibit positive correlations with yield, with x3 showing a stronger correlation (corr = 0.3664) than x2 (corr = 0.2363). This suggests that increasing the concentrations of aldehyde and isocyanide generally leads to higher yields.
+
+2. **Catalyst Impact**:
+   - **x4 (Catalyst)** has the highest positive correlation with yield (corr = 0.4459), indicating that the amount of catalyst is a significant factor in achieving higher yields. The data suggests that higher equivalents of catalyst are beneficial.
+
+5. **Low-Yield Conditions**:
+   - Low yields are frequently associated with low catalyst levels (x4 around 0.021931 equivalents) and lower concentrations of x2 and x3. This suggests that insufficient catalyst and lower reactant concentrations are detrimental to the reaction yield.
+
+6. **Interactions**:
+   - High yields are achieved when both x2 and x3 are high, indicating a synergistic effect between these two variables. The presence of a sufficient amount of catalyst (x4) further enhances this effect.
+
+
+In summary, the reaction is primarily driven by high concentrations of aldehyde and isocyanide, with the catalyst playing a crucial role in enhancing yields. The amine concentration appears to be less influential. For optimal yields, focus on maximizing x2, x3, and x4 within their observed ranges.
+
 """
 )
 
@@ -158,3 +167,5 @@ Instructions:
 # - Interactions: emphasise that keeping x1 clamped at the floor enables x3 saturation; any drift in x4 must stay coupled to high x2/x3.
 # """
 # )
+
+

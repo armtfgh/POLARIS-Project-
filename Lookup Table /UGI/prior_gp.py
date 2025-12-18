@@ -54,6 +54,8 @@ class Prior:
                         idx = self._feature_lookup_lower.get(label.lower())
             else:
                 return None
+            if idx is None:
+                return None
             return idx if 0 <= idx < d else None
 
         def _sigmoid(z: Tensor, center: float = 0.5, k: float = 6.0) -> Tensor:

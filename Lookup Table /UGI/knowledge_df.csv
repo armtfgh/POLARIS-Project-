@@ -1,0 +1,215 @@
+,iter,n_obs,ndcg,description
+0,19,26,0.4268781239130114,"The analysis of the UGI reaction data reveals several trends and interactions among the variables x1 (Amine), x2 (Aldehyde), x3 (Isocyanide), and x4 (Catalyst) with respect to the yield.
+
+1. **Global Trends:**
+   - **x1 (Amine):** The correlation between yield and x1 is negative (-0.2526), suggesting that increasing the concentration of amine tends to decrease the yield. This indicates that x1 might have an inhibitory effect on the reaction, or there is an optimal lower range for x1.
+   - **x2 (Aldehyde):** The correlation is positive (0.3207), indicating that higher concentrations of aldehyde generally lead to higher yields. This suggests that x2 is a driving factor for the reaction.
+   - **x3 (Isocyanide):** With a correlation of 0.4269, x3 has a strong positive impact on the yield. High concentrations of isocyanide are associated with higher yields, making it a crucial component for the reaction's success.
+   - **x4 (Catalyst):** The strongest positive correlation (0.4594) is with x4, indicating that the catalyst concentration is a significant driver of yield. Higher equivalents of catalyst are associated with better yields.
+
+2. **Specific Regions of Interest:**
+   - **x4 (Catalyst):** There is a distinct peak in yield when x4 is around 0.3 equivalents, as seen in several top-yield samples. This suggests that maximizing catalyst concentration within the observed range is beneficial.
+   - **x1 (Amine):** Lower values of x1 (e.g., 120 mM) appear in several top-yield samples, suggesting a potential sweet spot at the lower end of the range.
+
+3. **Interactions:**
+   - **High Yield Conditions:** High yields are predominantly observed when both x2 and x3 are at their upper limits (300 mM), combined with a high catalyst concentration (x4 around 0.3). This indicates a synergistic effect where high concentrations of aldehyde and isocyanide, along with ample catalyst, drive the reaction towards higher yields.
+   - **Low Yield Conditions:** Low yields are frequently observed when x4 is at its minimum (0.021931 equivalents), regardless of the concentrations of x1, x2, and x3. This underscores the critical role of the catalyst in achieving significant yields.
+
+4. **Uncertainty and Sparse Data:**
+   - The data is sparse in regions where x4 is below 0.1 equivalents, making it difficult to ascertain trends in this range. Similarly, there is limited data for combinations where x2 and x3 are both at their lower limits, which could provide insights into the lower bounds of their effectiveness.
+
+In summary, the reaction is primarily driven by x2 (Ald"
+1,39,46,0.2891275777723821,"The analysis of the UGI reaction data reveals several key insights into the chemical landscape:
+
+1. **Primary Drivers**:
+   - **x3 (Isocyanide)**: This variable shows a strong positive correlation with yield (corr = 0.4375). High yields are consistently observed when x3 is at its maximum value of 300 mM. This suggests that x3 should be treated as an increasing function, with higher concentrations generally leading to better outcomes.
+   - **x4 (Catalyst)**: The catalyst also exhibits a strong positive correlation with yield (corr = 0.4876). The highest yields are observed when x4 is at higher values, particularly around 0.3 equivalents. This indicates that x4 is a critical factor, and its effect is notably positive.
+
+2. **Secondary Influences**:
+   - **x2 (Aldehyde)**: x2 has a moderate positive correlation with yield (corr = 0.1942). While not as strong as x3 or x4, higher values of x2 (close to 300 mM) are often associated with higher yields, especially when combined with high x3 and x4.
+   - **x1 (Amine)**: Interestingly, x1 shows a negative correlation with yield (corr = -0.2239). This suggests that higher concentrations of x1 may not be beneficial, and there might be an optimal range or a need to balance it with other components.
+
+3. **Regions of Interest**:
+   - There is a distinct peak in yield when x3 is at its maximum (300 mM) and x4 is also high (close to 0.3 equivalents). This combination consistently appears in the top-yield samples.
+   - Low yields are predominantly observed when x4 is at its minimum (0.021931 equivalents), regardless of the values of x1, x2, and x3. This underscores the importance of the catalyst in driving the reaction.
+
+4. **Interactions**:
+   - High yields are generally achieved when both x3 and x4 are high. This interaction suggests a synergistic effect between the isocyanide and the catalyst.
+   - The negative impact of x1 suggests that its interaction with other variables might be complex, potentially requiring careful optimization to avoid detrimental effects on yield.
+
+5. **Uncertainty and Sparse Data**:
+   - The data is sparse at the lower end of x4, making it difficult to ascertain the precise impact of low catalyst levels beyond the observed negative correlation with yield.
+   - The negative correlation of x1 with yield suggests a potential area for further exploration, as the current data does not provide a clear optimal range for x1.
+
+In summary, the reaction is primarily driven by x3 and x4, both of which should be maximized to achieve high yields. x2 also contributes positively but to a lesser extent. x1 appears to have a negative impact, indicating"
+2,59,66,0.45259729222276385,"The analysis of the UGI reaction data reveals several insights into the chemical landscape:
+
+1. **Primary Drivers**:
+   - **x3 (Isocyanide)**: This variable shows a positive correlation with yield (corr = 0.3502), indicating that higher concentrations of isocyanide generally lead to higher yields. This trend is supported by the fact that many of the top-yield samples have x3 at the upper end of its range (300 mM).
+   - **x4 (Catalyst)**: The catalyst concentration has the strongest positive correlation with yield (corr = 0.4420). The top-yield samples tend to have higher x4 values, suggesting that the catalyst is a critical factor in driving the reaction towards higher yields.
+
+2. **Secondary Influences**:
+   - **x2 (Aldehyde)**: This variable also shows a positive correlation with yield (corr = 0.2711). High-yield samples often have x2 at the upper end of its range, indicating that aldehyde concentration plays a significant role, though not as pronounced as x3 and x4.
+   - **x1 (Amine)**: The correlation between x1 and yield is slightly negative (corr = -0.1194), suggesting that increasing amine concentration does not necessarily lead to higher yields. This variable appears to have a more complex relationship with yield, potentially indicating an optimal range rather than a simple linear trend.
+
+3. **Regions of Interest**:
+   - **High Catalyst Impact**: There is a distinct peak in yield when x4 is higher, particularly above 0.15 equivalents. This suggests that ensuring sufficient catalyst is present is crucial for optimizing yield.
+   - **High Isocyanide and Aldehyde**: High yields are often observed when both x3 and x2 are at their maximum values (300 mM), indicating a synergistic effect between these two components.
+
+4. **Interactions**:
+   - **x2 and x3 Synergy**: High yield is predominantly achieved when both x2 and x3 are high, suggesting a potential interaction where the presence of both in high concentrations enhances the reaction efficiency.
+   - **Catalyst and Substrate Concentrations**: The data suggests that the catalyst's effectiveness is amplified when combined with high substrate concentrations (particularly x3), highlighting the importance of balancing catalyst and substrate levels.
+
+5. **Uncertainty and Sparse Data**:
+   - The data is sparse at lower catalyst concentrations (x4 near 0.021931), where yields are consistently low. This suggests that the reaction is not favorable under these conditions, but more data would be needed to confirm trends at these low catalyst levels.
+   - The negative yields observed in some samples may indicate experimental errors or conditions where the reaction is not proceeding as intended, particularly at low catalyst concentrations.
+
+In summary, the reaction is primarily driven by high concentrations of isocyanide and catalyst"
+3,79,86,0.45473543047336423,"The analysis of the UGI reaction data reveals several insights into the chemical landscape:
+
+1. **Primary Drivers**:
+   - **x3 (Isocyanide)**: This variable shows the strongest positive correlation with yield (corr = 0.3448). High yields are consistently observed when x3 is at its maximum value (300 mM). It is advisable to treat x3 as an increasing function for optimizing yield.
+   - **x4 (Catalyst)**: This variable also shows a significant positive correlation with yield (corr = 0.4706). The highest yields are associated with higher values of x4, suggesting that the catalyst plays a crucial role in enhancing the reaction. There is a distinct peak in yield when x4 is around 0.15 to 0.3 equivalents.
+
+2. **Secondary Influences**:
+   - **x2 (Aldehyde)**: There is a moderate positive correlation with yield (corr = 0.2129). High yields are often observed when x2 is at its maximum value (300 mM), indicating that x2 should also be considered as an increasing function, albeit with less impact than x3 and x4.
+   - **x1 (Amine)**: This variable shows a weak negative correlation with yield (corr = -0.0827). The data does not suggest a strong trend, and x1 appears to have a minimal impact on yield within the observed range. There is no clear sweet spot for x1, and it may not be a critical factor in optimizing yield.
+
+3. **Regions of Interest**:
+   - High yields are predominantly observed when both x2 and x3 are at their maximum values (300 mM), often accompanied by higher values of x4. This suggests a synergistic interaction between x2, x3, and x4 in driving the reaction towards higher yields.
+   - Low yields are frequently associated with low values of x4 (around 0.021931 equivalents), regardless of the values of x1, x2, and x3. This reinforces the importance of the catalyst in the reaction.
+
+4. **Uncertainty and Sparse Data**:
+   - The data is sparse in regions where x4 is at its lower range, and yields are consistently low in these areas. This limits the ability to infer trends for x1 and x2 in these regions.
+   - There is limited data on the interaction effects between x1 and the other variables, leading to uncertainty in its role.
+
+In summary, the reaction is primarily driven by x3 and x4, with x2 also contributing positively. High yields are achieved when x3 and x2 are maximized, and x4 is in the upper range. x1 appears to have a negligible impact on yield within the observed data. Future experiments should focus on exploring the upper ranges of x3 and x4, while maintaining high levels of x2, to further elucidate the optimal conditions"
+4,99,106,0.42976741501637467,"The analysis of the provided UGI reaction data reveals several key insights into the chemical landscape:
+
+1. **Primary Drivers**:
+   - **x3 (Isocyanide)**: This variable shows a strong positive correlation with yield (corr = 0.3505). High yields are consistently observed when x3 is at its upper range (300 mM). This suggests that x3 should be treated as an increasing function, with higher concentrations generally leading to better yields.
+   - **x4 (Catalyst)**: The catalyst concentration has the strongest positive correlation with yield (corr = 0.4204). High yields are associated with higher catalyst equivalents, particularly around the upper range of x4 (0.3 equivalents). This indicates that x4 is a critical factor and should be maximized within the tested range for optimal yields.
+
+2. **Secondary Influences**:
+   - **x2 (Aldehyde)**: There is a moderate positive correlation with yield (corr = 0.2329). The top-yielding samples often have x2 at the upper end of its range (300 mM), suggesting that higher aldehyde concentrations are beneficial, though not as strongly as x3 and x4.
+   - **x1 (Amine)**: This variable shows a slight negative correlation with yield (corr = -0.1055). The data does not suggest a strong trend, but lower x1 values (120 mM) appear in several top-yield samples, indicating a potential sweet spot at the lower end of its range.
+
+3. **Regions of Interest**:
+   - **High Yield Region**: High yields are predominantly observed when x3 is at 300 mM and x4 is near 0.3 equivalents. Additionally, x2 often appears at 300 mM in these high-yield samples, suggesting a synergistic effect when both x2 and x3 are high.
+   - **Low Yield Region**: Low yields are frequently associated with low x4 values (around 0.021931 equivalents), regardless of the levels of x1, x2, and x3. This reinforces the importance of the catalyst concentration in driving the reaction yield.
+
+4. **Interactions**:
+   - **x2 and x3 Interaction**: High yields are more likely when both x2 and x3 are at their upper ranges, indicating a potential interaction where the presence of both in high concentrations enhances the reaction outcome.
+   - **x4 Dependency**: The catalyst concentration (x4) appears to be a limiting factor; low yields are consistently linked to low x4 levels, suggesting that sufficient catalyst is necessary to achieve significant yields.
+
+5. **Uncertainties**:
+   - The data is sparse in regions where x1 is high and x4 is low, making it difficult to ascertain the precise impact of high amine concentrations in those conditions.
+   - While trends are observed, the overall yield range is relatively"
+5,119,126,0.45773672678097904,"The analysis of the UGI reaction data reveals several insights into the chemical landscape:
+
+1. **Primary Drivers**:
+   - **x3 (Isocyanide)**: This variable shows a strong positive correlation with yield (corr = 0.3454). High yields are consistently observed when x3 is at its upper range (240-300 mM). This suggests that x3 is a critical driver of the reaction, and its effect should be considered as an increasing function.
+   - **x4 (Catalyst)**: The strongest correlation with yield is observed for x4 (corr = 0.4600). High yields are associated with higher values of x4, indicating that the catalyst plays a significant role in enhancing the reaction. There is a distinct peak in yield when x4 is around 0.15 to 0.3 equivalents, suggesting that optimizing catalyst concentration is crucial.
+
+2. **Secondary Influences**:
+   - **x2 (Aldehyde)**: This variable has a moderate positive correlation with yield (corr = 0.1733). High yields are often seen when x2 is at the upper end of its range (240-300 mM), indicating that x2 has a positive impact, though less pronounced than x3 and x4.
+   - **x1 (Amine)**: The correlation between x1 and yield is weakly negative (corr = -0.0295), suggesting that x1 does not have a strong direct impact on the yield. However, it is important to note that high yields are observed across a range of x1 values, indicating that its effect might be context-dependent or overshadowed by the effects of x3 and x4.
+
+3. **Regions of Interest**:
+   - High yields are predominantly observed when x3 is high (240-300 mM) and x4 is moderate to high (0.15-0.3 equivalents). This suggests a synergistic interaction between these two variables.
+   - The combination of high x2 and high x3 also appears to be favorable for achieving high yields, particularly when x4 is adequately optimized.
+
+4. **Interactions**:
+   - There is a notable interaction between x3 and x4, where high yields are achieved when both are at elevated levels. This suggests that the presence of sufficient isocyanide and catalyst is crucial for driving the reaction towards higher yields.
+   - The data does not provide strong evidence for interactions involving x1, indicating that its role may be more passive or dependent on other variables.
+
+5. **Uncertainty and Sparse Regions**:
+   - The data is sparse in regions where x4 is very low (around 0.021931 equivalents), and these conditions consistently result in low yields. This suggests that insufficient catalyst is detrimental to the reaction.
+   - There is limited data on the effects of varying x1 independently, making it difficult to draw definitive conclusions about its optimal range or interactions.
+
+In"
+6,139,146,0.45985630967191127,"The analysis of the provided experimental data for the UGI reaction reveals several insights into the chemical landscape:
+
+1. **Global Trends:**
+   - **x1 (Amine):** The correlation between x1 and yield is slightly negative (-0.0436), suggesting that x1 does not have a strong impact on the yield. There is no clear increasing or decreasing trend, indicating that x1 might not be a primary driver of the reaction yield.
+   - **x2 (Aldehyde):** The correlation between x2 and yield is positive (0.1923), indicating a moderate positive impact on the yield. Higher values of x2 tend to be associated with higher yields, but the effect is not as strong as other variables.
+   - **x3 (Isocyanide):** With a correlation of 0.3326, x3 has a noticeable positive impact on the yield. Higher concentrations of isocyanide are generally beneficial for the reaction, suggesting that x3 should be treated as an increasing function.
+   - **x4 (Catalyst):** The strongest correlation with yield is observed for x4 (0.4715), indicating that the catalyst concentration is a significant driver of the reaction. Higher equivalents of the catalyst are associated with higher yields, suggesting that optimizing x4 is crucial for improving the reaction outcome.
+
+2. **Regions of Interest:**
+   - **Catalyst (x4) Peak:** There is a distinct peak in yield when x4 is higher, as seen in the top-yield samples where x4 values are generally above 0.1. The highest yields are observed when x4 is around 0.15 or higher, indicating a region of interest for catalyst optimization.
+   - **High x2 and x3:** Many of the top-yield samples have high values of both x2 and x3, particularly when x2 is at its maximum (300 mM) and x3 is also high (240-300 mM). This suggests a synergistic effect when both components are at elevated levels.
+
+3. **Apparent Interactions:**
+   - **x2 and x3 Interaction:** High yields are often observed when both x2 and x3 are at their upper ranges, indicating a potential interaction where both components need to be high to achieve optimal yields.
+   - **Catalyst Dependence:** The presence of a sufficient amount of catalyst (x4) is crucial across all high-yield samples, reinforcing its role as a key factor in the reaction's success.
+
+4. **Uncertainty and Sparse Data:**
+   - The data is sparse in regions where x1 is varied independently, making it difficult to ascertain its precise role. Similarly, the impact of x2 and x3 at lower concentrations is less clear due to fewer observations in these regions.
+
+In summary, the reaction is primarily driven by x3 and x4, both of which should be treated as increasing functions. x"
+7,159,166,0.471216194880288,"The analysis of the UGI reaction data reveals several insights into the chemical landscape:
+
+1. **Primary Drivers**:
+   - **x3 (Isocyanide)**: This variable shows a strong positive correlation with yield (corr = 0.3558). High yields are consistently observed when x3 is at its upper range (300 mM), suggesting that isocyanide concentration is a critical factor for maximizing yield.
+   - **x4 (Catalyst)**: The catalyst has the highest positive correlation with yield (corr = 0.4634). The top-yield samples generally have higher catalyst equivalents, indicating that increasing the catalyst amount positively impacts the reaction yield.
+
+2. **Secondary Influences**:
+   - **x2 (Aldehyde)**: There is a moderate positive correlation with yield (corr = 0.1860). High yields are often associated with higher x2 values (300 mM), but the effect is less pronounced than x3 and x4.
+   - **x1 (Amine)**: This variable has a slight negative correlation with yield (corr = -0.0695), suggesting that variations in amine concentration have minimal impact on yield. There is no clear trend indicating a specific sweet spot for x1.
+
+3. **Regions of Interest**:
+   - **High Yield Region**: The highest yields are observed when x3 and x4 are both high, particularly when x3 is at 300 mM and x4 is above 0.1 equivalents. This suggests a synergistic effect between isocyanide concentration and catalyst amount.
+   - **Low Yield Region**: Low yields are frequently associated with low catalyst equivalents (around 0.021931), regardless of the concentrations of x1, x2, and x3. This reinforces the importance of the catalyst in driving the reaction.
+
+4. **Interactions**:
+   - **x2 and x3 Interaction**: High yields are often seen when both x2 and x3 are at their upper limits, indicating a potential interaction where both high aldehyde and isocyanide concentrations are beneficial.
+   - **x3 and x4 Synergy**: The combination of high x3 and x4 values appears crucial for achieving top yields, suggesting a synergistic relationship between these two variables.
+
+5. **Uncertainty and Sparse Data**:
+   - The data is sparse in regions where x4 is low, making it difficult to ascertain trends in these areas. Caution should be exercised when extrapolating results to low catalyst conditions.
+   - The negative yields observed in some samples may indicate experimental errors or conditions that lead to degradation or side reactions, particularly at low catalyst levels.
+
+In summary, the reaction is primarily driven by high isocyanide concentration and catalyst equivalents. While aldehyde concentration also plays a role, amine concentration appears to have a negligible impact on yield. The interaction between high isocyanide and catalyst levels is"
+8,179,186,0.5099515484234554,"The analysis of the provided UGI reaction data reveals several insights into the chemical landscape:
+
+1. **Global Trends**:
+   - **x1 (Amine)**: The correlation between x1 and yield is slightly negative (-0.0789), suggesting that x1 does not have a strong impact on the yield. There is no clear trend indicating that increasing or decreasing x1 significantly affects the yield.
+   - **x2 (Aldehyde)**: With a positive correlation (0.2040), x2 appears to have a moderate positive impact on yield. Higher values of x2 are generally associated with higher yields, although the effect is not very strong.
+   - **x3 (Isocyanide)**: x3 shows a stronger positive correlation with yield (0.3623), indicating that increasing x3 tends to increase the yield. This suggests that x3 is an important driver of the reaction.
+   - **x4 (Catalyst)**: The strongest positive correlation with yield (0.4383) is observed for x4, indicating that the catalyst concentration is a significant factor in driving the reaction yield. Higher catalyst equivalents are generally associated with higher yields.
+
+2. **Specific Regions of Interest**:
+   - **High Yield Region**: The top-yielding samples consistently show high values for x2 and x3, often at the upper end of their observed ranges (300 mM). Additionally, x4 is also relatively high in these samples, suggesting that a combination of high x2, x3, and x4 is beneficial for achieving high yields.
+   - **Low Yield Region**: The low-yield samples often have low values of x4 (around 0.021931034), indicating that insufficient catalyst is detrimental to the reaction. These samples also frequently have lower values for x2 and x3, reinforcing the importance of these variables.
+
+3. **Apparent Interactions**:
+   - **x2 and x3 Interaction**: High yields are predominantly observed when both x2 and x3 are at their maximum values, suggesting a synergistic effect between these two components. This interaction is crucial for optimizing the reaction.
+   - **x4's Role**: The catalyst (x4) plays a critical role, and its effect is more pronounced when combined with high levels of x2 and x3. There is a distinct peak in yield when x4 is above 0.1 equivalents, especially when paired with high x2 and x3.
+
+In summary, the reaction is primarily driven by x3 and x4, both of which should be treated as increasing functions. x2 also contributes positively to the yield, but to a lesser extent. x1 appears to have minimal impact on the yield. The optimal region for high yield involves high concentrations of x2, x3, and x4, indicating a strong interaction between these variables. Care should be taken to ensure sufficient catalyst is present, as low x"
+9,199,206,0.42945537840841497,"The analysis of the UGI reaction data reveals several insights into the chemical landscape:
+
+1. **Primary Drivers**:
+   - **x2 (Aldehyde)** and **x3 (Isocyanide)** are the primary drivers of the reaction yield. Both variables exhibit positive correlations with yield, with x3 showing a stronger correlation (corr = 0.3664) than x2 (corr = 0.2363). This suggests that increasing the concentrations of aldehyde and isocyanide generally leads to higher yields.
+
+2. **Catalyst Impact**:
+   - **x4 (Catalyst)** has the highest positive correlation with yield (corr = 0.4459), indicating that the amount of catalyst is a significant factor in achieving higher yields. The data suggests that higher equivalents of catalyst are beneficial.
+
+3. **Amine Influence**:
+   - **x1 (Amine)** shows a weak negative correlation with yield (corr = -0.0893), suggesting that variations in amine concentration have a minimal and slightly negative impact on the yield. This implies that x1 is not a primary driver in this reaction.
+
+4. **Regions of Interest**:
+   - High yields are predominantly observed when x2 and x3 are at their upper range (300 mM), often coupled with higher values of x4. This indicates a region of interest where maximizing x2, x3, and x4 leads to optimal yields.
+   - There is a notable peak in yield when x4 is around 0.109 to 0.3 equivalents, especially when combined with high x2 and x3 concentrations.
+
+5. **Low-Yield Conditions**:
+   - Low yields are frequently associated with low catalyst levels (x4 around 0.021931 equivalents) and lower concentrations of x2 and x3. This suggests that insufficient catalyst and lower reactant concentrations are detrimental to the reaction yield.
+
+6. **Interactions**:
+   - High yields are achieved when both x2 and x3 are high, indicating a synergistic effect between these two variables. The presence of a sufficient amount of catalyst (x4) further enhances this effect.
+
+7. **Uncertainty and Sparse Data**:
+   - The data is sparse for combinations where x2 and x3 are low, and x4 is high. Caution should be exercised in extrapolating trends in these regions due to limited data points.
+
+In summary, the reaction is primarily driven by high concentrations of aldehyde and isocyanide, with the catalyst playing a crucial role in enhancing yields. The amine concentration appears to be less influential. For optimal yields, focus on maximizing x2, x3, and x4 within their observed ranges."
