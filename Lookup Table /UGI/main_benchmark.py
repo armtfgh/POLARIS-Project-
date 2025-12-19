@@ -413,6 +413,7 @@ def run_hybrid_continuous(
     n_iter: int,
     seed: int = 0,
     readout_source: str = "flat",
+    manual_readout: Optional[Dict[str, Any]] = None,
     prompt_profile: str = "perfect",
     model: str = "gpt-4o-mini",
     pool_size: int = 2048,
@@ -461,6 +462,11 @@ def run_hybrid_continuous(
         print(f"[Hybrid][continuous] seed={seed} readout ({prompt_profile}):\n"
               f"{json.dumps(ro0_raw, indent=2)}")
         ro0_sane = sanitize_readout_dim(ro0_raw, len(domain.feature_names), feature_names=domain.feature_names)
+        ro0 = _normalize_readout_to_unit_box(ro0_sane, domain.mins, domain.maxs, feature_names=domain.feature_names)
+    elif readout_source == "manual":
+        if manual_readout is None:
+            raise ValueError("readout_source='manual' requires manual_readout (raw units).")
+        ro0_sane = sanitize_readout_dim(manual_readout, len(domain.feature_names), feature_names=domain.feature_names)
         ro0 = _normalize_readout_to_unit_box(ro0_sane, domain.mins, domain.maxs, feature_names=domain.feature_names)
     else:
         ro0 = flat_readout(feature_names=domain.feature_names)
@@ -918,7 +924,7 @@ def sanitize_readout_dim(readout: Dict[str, Any], d: int, *, feature_names: Opti
     - Interactions: drop entries that refer to out-of-range dims when integer indices are provided.
     """
     if readout is None:
-        return {"effects": {}, "interactions": [], "bumps": []}
+        return {"effects": {}, "interactions": [], "bumps": [], "constraints": []}
     ro = {**readout}
 
     # bumps
@@ -982,6 +988,23 @@ def sanitize_readout_dim(readout: Dict[str, Any], d: int, *, feature_names: Opti
         if keep:
             inter_out.append(it)
     ro["interactions"] = inter_out
+
+    # constraints: keep only entries that map to known dims
+    cons_in = ro.get("constraints", []) or []
+    if not isinstance(cons_in, list):
+        cons_in = []
+    cons_out = []
+    for c in cons_in:
+        if not isinstance(c, dict):
+            continue
+        var = c.get("var", None)
+        r = c.get("range", None)
+        if var is None or not isinstance(r, (list, tuple)) or len(r) != 2:
+            continue
+        if isinstance(var, str) and _dim_for_key(var) is None:
+            continue
+        cons_out.append(c)
+    ro["constraints"] = cons_out
     return ro
 
 
@@ -992,7 +1015,7 @@ def _normalize_readout_to_unit_box(readout: Dict[str, Any], mins: Tensor, maxs: 
     Sigma entries may be either scalar or list; scalars are scaled by the average range.
     """
     if readout is None:
-        return {"effects": {}, "interactions": [], "bumps": []}
+        return {"effects": {}, "interactions": [], "bumps": [], "constraints": []}
     rng = (maxs - mins).clamp_min(1e-12)
     mins = mins.to(device=DEVICE, dtype=DTYPE)
     rng = rng.to(device=DEVICE, dtype=DTYPE)
@@ -1051,7 +1074,125 @@ def _normalize_readout_to_unit_box(readout: Dict[str, Any], mins: Tensor, maxs: 
             "amp": float(amp),
         })
     ro["bumps"] = bumps
+
+    # constraints: normalize per-dim forbidden intervals
+    constraints_out = []
+    for c in ro.get("constraints", []) or []:
+        if not isinstance(c, dict):
+            continue
+        var = c.get("var", None)
+        r = c.get("range", None)
+        if var is None or not isinstance(r, (list, tuple)) or len(r) != 2:
+            continue
+        if not isinstance(var, str):
+            continue
+        dim_idx = _dim_index(var)
+        if dim_idx is None:
+            continue
+
+        low = float(r[0])
+        high = float(r[1])
+        low_n = float(((low - mins[dim_idx]) / rng[dim_idx]).clamp(1e-6, 1 - 1e-6).item())
+        high_n = float(((high - mins[dim_idx]) / rng[dim_idx]).clamp(1e-6, 1 - 1e-6).item())
+        if high_n < low_n:
+            low_n, high_n = high_n, low_n
+
+        c_out = dict(c)
+        c_out["var"] = var
+        c_out["range"] = [float(low_n), float(high_n)]
+        constraints_out.append(c_out)
+    ro["constraints"] = constraints_out
     return ro
+
+
+def evaluate_readout_loyalty_continuous(
+    domain: ContinuousDomain,
+    history_df: pd.DataFrame,
+    *,
+    readout_raw: Dict[str, Any],
+    method: str = "hybrid",
+    include_init: bool = False,
+) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """
+    Check whether the suggested conditions stayed consistent with the provided readout.
+
+    Currently focuses on "negative knowledge" (constraints): how often suggested points fall
+    inside forbidden raw intervals.
+    """
+    if history_df is None or history_df.empty:
+        return history_df, {"n_points": 0, "n_violations": 0, "violation_rate": float("nan")}
+
+    df = history_df.copy()
+    if method is not None:
+        df = df[df["method"] == method].copy()
+    if not include_init:
+        df = df[df["iter"] >= 0].copy()
+
+    ro_sane = sanitize_readout_dim(readout_raw, len(domain.feature_names), feature_names=domain.feature_names)
+    ro_unit = _normalize_readout_to_unit_box(ro_sane, domain.mins, domain.maxs, feature_names=domain.feature_names)
+    prior = readout_to_prior(ro_unit, feature_names=domain.feature_names)
+
+    # Compute per-row prior score (m0) on the unit box.
+    mins = domain.mins.to(device=DEVICE, dtype=DTYPE)
+    rng = (domain.maxs - domain.mins).to(device=DEVICE, dtype=DTYPE).clamp_min(1e-12)
+    X_raw = torch.tensor(
+        df[[f"x{i+1}" for i in range(len(domain.feature_names))]].to_numpy(dtype=np.float64),
+        device=DEVICE,
+        dtype=DTYPE,
+    )
+    X_unit = ((X_raw - mins) / rng).clamp(0.0, 1.0)
+    with torch.no_grad():
+        m0 = prior.m0_torch(X_unit).reshape(-1).detach().cpu().numpy()
+    df["prior_m0"] = m0.astype(np.float64)
+
+    # Constraint violations in RAW units.
+    constraints = ro_sane.get("constraints", []) or []
+    violation_cols: List[str] = []
+    for j, c in enumerate(constraints):
+        if not isinstance(c, dict):
+            continue
+        var = c.get("var", None)
+        r = c.get("range", None)
+        if var is None or not isinstance(r, (list, tuple)) or len(r) != 2:
+            continue
+        var = str(var)
+        if var.startswith("x"):
+            col = var
+        else:
+            if var not in domain.feature_names:
+                continue
+            col = f"x{domain.feature_names.index(var) + 1}"
+        if col not in df.columns:
+            continue
+
+        lo = float(r[0]); hi = float(r[1])
+        if hi < lo:
+            lo, hi = hi, lo
+        vcol = f"violates_constraint_{j+1}"
+        df[vcol] = (df[col] >= lo) & (df[col] <= hi)
+        violation_cols.append(vcol)
+
+    if violation_cols:
+        df["violates_any_constraint"] = df[violation_cols].any(axis=1)
+        df["n_constraints_violated"] = df[violation_cols].sum(axis=1).astype(int)
+    else:
+        df["violates_any_constraint"] = False
+        df["n_constraints_violated"] = 0
+
+    n_points = int(df.shape[0])
+    n_viol = int(df["violates_any_constraint"].sum())
+    summary: Dict[str, Any] = {
+        "n_points": n_points,
+        "n_constraints": int(len(constraints)),
+        "n_violations": n_viol,
+        "violation_rate": float(n_viol / max(1, n_points)),
+        "avg_prior_m0": float(df["prior_m0"].mean()) if n_points else float("nan"),
+        "min_prior_m0": float(df["prior_m0"].min()) if n_points else float("nan"),
+        "max_prior_m0": float(df["prior_m0"].max()) if n_points else float("nan"),
+    }
+    if n_viol:
+        summary["violating_iters"] = [int(v) for v in df.loc[df["violates_any_constraint"], "iter"].tolist()]
+    return df, summary
 
 # -------------------- Prompt + LLM readout -------------------------
 
@@ -1745,62 +1886,231 @@ def plot_method_2d_hist(
     fig.suptitle(f"{feature_x} vs {feature_y} sampling density", y=0.98)
     fig.tight_layout()
     return fig
+
+
+def plot_constraint_avoidance_1d(
+    history_df: pd.DataFrame,
+    *,
+    readout_raw: Dict[str, Any],
+    var: str = "x1",
+    feature_names: Optional[List[str]] = None,
+    method: str = "hybrid",
+    include_init: bool = False,
+    bins: int = 30,
+) -> plt.Figure:
+    """Visualize 1D constraint avoidance for one variable (raw units)."""
+    if history_df is None or history_df.empty:
+        raise ValueError("history_df is empty")
+
+    df = history_df.copy()
+    if method is not None:
+        df = df[df["method"] == method].copy()
+    if not include_init:
+        df = df[df["iter"] >= 0].copy()
+    if df.empty:
+        raise ValueError("No rows left after filtering (method/include_init).")
+
+    var = str(var)
+    if var.startswith("x"):
+        col = var
+    else:
+        names = feature_names or []
+        if var not in names:
+            raise ValueError(f"var={var!r} not found in feature_names={names!r}")
+        col = f"x{names.index(var) + 1}"
+
+    constraints = (readout_raw or {}).get("constraints") or []
+    cons_for_var = []
+    for c in constraints:
+        if not isinstance(c, dict):
+            continue
+        cvar = c.get("var", None)
+        r = c.get("range", None)
+        if cvar is None or not isinstance(r, (list, tuple)) or len(r) != 2:
+            continue
+        cvar = str(cvar)
+        if cvar != var:
+            continue
+        lo, hi = float(r[0]), float(r[1])
+        if hi < lo:
+            lo, hi = hi, lo
+        cons_for_var.append((lo, hi, str(c.get("reason", ""))))
+
+    fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(12.0, 4.2))
+
+    y_vals = df[col].to_numpy(dtype=np.float64)
+    iters = df["iter"].to_numpy(dtype=int)
+    colors = df["y"].to_numpy(dtype=np.float64) if "y" in df.columns else None
+
+    sc = ax0.scatter(iters, y_vals, s=22, c=colors, cmap="viridis", alpha=0.9, edgecolors="none")
+    if colors is not None:
+        fig.colorbar(sc, ax=ax0, label="y (objective)")
+    ax0.set_title(f"{col} over BO iterations")
+    ax0.set_xlabel("Iteration")
+    ax0.set_ylabel(f"{col} (raw)")
+    ax0.grid(True, alpha=0.2)
+
+    for lo, hi, reason in cons_for_var:
+        ax0.axhspan(lo, hi, color="red", alpha=0.12)
+        ax0.axhline(lo, color="red", alpha=0.35, linewidth=1.0)
+        ax0.axhline(hi, color="red", alpha=0.35, linewidth=1.0)
+        if reason:
+            ax0.text(
+                iters.min(),
+                0.5 * (lo + hi),
+                f"forbidden: {reason}",
+                color="red",
+                fontsize=8,
+                va="center",
+                ha="left",
+                alpha=0.9,
+            )
+
+    ax1.hist(y_vals, bins=bins, color="#4c72b0", alpha=0.85)
+    ax1.set_title(f"{col} distribution")
+    ax1.set_xlabel(f"{col} (raw)")
+    ax1.set_ylabel("Count")
+    ax1.grid(True, alpha=0.2)
+    for lo, hi, _ in cons_for_var:
+        ax1.axvspan(lo, hi, color="red", alpha=0.12)
+        ax1.axvline(lo, color="red", alpha=0.35, linewidth=1.0)
+        ax1.axvline(hi, color="red", alpha=0.35, linewidth=1.0)
+
+    fig.tight_layout()
+    return fig
+
+
+
 #%%
-if __name__ == "__main__":
-    domain = build_continuous_domain()
-    summary = domain.metadata or {}
-    print("UGI continuous oracle summary:")
-    print(f" - Training rows: {summary.get('n_training_rows', 'N/A')}")
-    metrics = summary.get("oracle_metrics") or {}
-    if metrics:
-        print(
-            " - RF metrics: "
-            f"OOB={metrics.get('oob_score', float('nan')):.3f}, "
-            f"RMSE={metrics.get('rmse', float('nan')):.5f}, "
-            f"R^2={metrics.get('r2', float('nan')):.3f}"
+
+OLD_VERSION = False
+if OLD_VERSION:
+        domain = build_continuous_domain()
+        summary = domain.metadata or {}
+        print("UGI continuous oracle summary:")
+        print(f" - Training rows: {summary.get('n_training_rows', 'N/A')}")
+        metrics = summary.get("oracle_metrics") or {}
+        if metrics:
+            print(
+                " - RF metrics: "
+                f"OOB={metrics.get('oob_score', float('nan')):.3f}, "
+                f"RMSE={metrics.get('rmse', float('nan')):.5f}, "
+                f"R^2={metrics.get('r2', float('nan')):.3f}"
+            )
+
+        hist = compare_methods_continuous(
+            domain,
+            n_init=5,
+            hybrid_n_init=1,
+            baseline_n_init=5,
+            n_iter=20,
+            seed=42,
+            repeats=3,
+            include_hybrid=True,
+            readout_source="llm",
+            prompt_profiles="best",
+            early_prior_boost=True,
+            early_prior_steps=5,
+            diagnose_prior=True,
         )
-
-    hist = compare_methods_continuous(
-        domain,
-        n_init=5,
-        hybrid_n_init=1,
-        baseline_n_init=5,
-        n_iter=20,
-        seed=42,
-        repeats=3,
-        include_hybrid=True,
-        readout_source="llm",
-        prompt_profiles="best",
-        early_prior_boost=True,
-        early_prior_steps=5,
-        diagnose_prior=True,
-    )
-    plot_runs_mean_lookup(hist)
+        plot_runs_mean_lookup(hist)
 
 
-    #%%A
-    # visualization
-    truth_df = pd.read_csv("ugi_merged_dataset.csv")
+        #%%A
+        # visualization
+        truth_df = pd.read_csv("ugi_merged_dataset.csv")
 
-    feature_subset = domain.feature_names[:2]
-    methods_to_show = [m for m in ["random", "baseline_ei"] if m in hist["method"].unique()]
-    if "hybrid_bad" in hist["method"].unique():
-        methods_to_show.append("hybrid_bad")
-    if "hybrid_best" in hist["method"].unique():
-        methods_to_show.append("hybrid_best")
-    if methods_to_show and feature_subset:
-        plot_parameter_violin_from_history(
-            hist,
-            methods=methods_to_show,
-            feature_cols=[f"x{domain.feature_names.index(name)+1}" for name in feature_subset],
-            truth_df=truth_df,
-        )
-        plot_method_2d_hist(
-            hist,
-            feature_x=f"x{domain.feature_names.index(feature_subset[0])+1}",
-            feature_y=f"x{domain.feature_names.index(feature_subset[1])+1}",
-            methods=methods_to_show,
-        )
+        feature_subset = domain.feature_names[:2]
+        methods_to_show = [m for m in ["random", "baseline_ei"] if m in hist["method"].unique()]
+        if "hybrid_bad" in hist["method"].unique():
+            methods_to_show.append("hybrid_bad")
+        if "hybrid_best" in hist["method"].unique():
+            methods_to_show.append("hybrid_best")
+        if methods_to_show and feature_subset:
+            plot_parameter_violin_from_history(
+                hist,
+                methods=methods_to_show,
+                feature_cols=[f"x{domain.feature_names.index(name)+1}" for name in feature_subset],
+                truth_df=truth_df,
+            )
+            plot_method_2d_hist(
+                hist,
+                feature_x=f"x{domain.feature_names.index(feature_subset[0])+1}",
+                feature_y=f"x{domain.feature_names.index(feature_subset[1])+1}",
+                methods=methods_to_show,
+            )
     #%%
 
     # debug_runs = hist.attrs.get("prior_debug_runs", [])
+
+    #%% Manual readout demos (no LLM required)
+ro_manual_raw = {
+    "effects": {
+        "x1": {"effect": "decreasing", "scale": 0.4, "confidence": 0.6, "range_hint": [120.0, 180.0]},
+        "x3": {"effect": "increasing", "scale": 0.6, "confidence": 0.8, "range_hint": [250.0, 300.0]},
+        "x4": {"effect": "nonmonotone-peak", "scale": 0.5, "confidence": 0.7, "range_hint": [0.20, 0.28]},
+    },
+    "interactions": [{"vars": ["x2", "x3"], "type": "synergy", "note": "both high helps"}],
+    "bumps": [{"mu": [150.0, 260.0, 290.0, 0.25], "sigma": [30.0, 30.0, 20.0, 0.03], "amp": 0.12}],
+    # Constraints are in RAW UNITS (same units as the dataset columns).
+    "constraints": [
+        {"var": "x1", "range": [240.0, 300.0], "reason": "excess amine suppresses yield", "penalty": 10.0},
+        {"var": "x4", "range": [0.02, 0.08], "reason": "too little acid stalls conversion", "penalty": 8.0},
+        {"var": "x1", "range": [125, 175], "reason": "excess amine suppresses yield", "penalty": 10.0},
+
+    ],
+}
+
+RUN_MANUAL_CONSTRAINT_DEMO = True
+RUN_MANUAL_READOUT_BO = True
+
+if RUN_MANUAL_CONSTRAINT_DEMO:
+    ro_manual_sane = sanitize_readout_dim(ro_manual_raw, len(domain.feature_names), feature_names=domain.feature_names)
+    ro_manual_unit = _normalize_readout_to_unit_box(
+        ro_manual_sane, domain.mins, domain.maxs, feature_names=domain.feature_names
+    )
+    prior_manual = readout_to_prior(ro_manual_unit, feature_names=domain.feature_names)
+    pool = _sample_unit_pool(domain.unit_bounds, 2048, seed=0)
+    m0 = prior_manual.m0_torch(pool).reshape(-1)
+    print(
+        "[Manual readout demo] prior m0 stats:",
+        "min=",
+        float(m0.min().item()),
+        "max=",
+        float(m0.max().item()),
+        "mean=",
+        float(m0.mean().item()),
+    )
+
+if RUN_MANUAL_READOUT_BO:
+    hist_manual = run_hybrid_continuous(
+        domain,
+        n_init=1,
+        n_iter=25,
+        seed=0,
+        readout_source="manual",
+        manual_readout=ro_manual_raw,
+        early_prior_boost=True,
+        early_prior_steps=5,
+    )
+    loyal_df, loyal_summary = evaluate_readout_loyalty_continuous(
+        domain,
+        hist_manual,
+        readout_raw=ro_manual_raw,
+        method="hybrid",
+        include_init=False,
+    )
+    print("[Manual readout BO] loyalty summary:\n", json.dumps(loyal_summary, indent=2))
+    fig = plot_constraint_avoidance_1d(
+        hist_manual,
+        readout_raw=ro_manual_raw,
+        var="x1",
+        feature_names=domain.feature_names,
+        method="hybrid",
+        include_init=False,
+    )
+    plt.show()
+
+
+
+#%%

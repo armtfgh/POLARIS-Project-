@@ -138,12 +138,15 @@ def _sanitize_readout_minimal(ro: Dict[str, Any]) -> Dict[str, Any]:
     out["effects"] = out.get("effects") or {}
     out["interactions"] = out.get("interactions") or []
     out["bumps"] = out.get("bumps") or []
+    out["constraints"] = out.get("constraints") or []
     if not isinstance(out["effects"], dict):
         out["effects"] = {}
     if not isinstance(out["interactions"], list):
         out["interactions"] = []
     if not isinstance(out["bumps"], list):
         out["bumps"] = []
+    if not isinstance(out["constraints"], list):
+        out["constraints"] = []
     return out
 
 
@@ -156,7 +159,7 @@ def normalize_readout_to_unit_box(
 ) -> Dict[str, Any]:
     """Convert raw-scale readout (range_hint/mu/sigma in original units) to unit-box coordinates."""
     if readout is None:
-        return {"effects": {}, "interactions": [], "bumps": []}
+        return {"effects": {}, "interactions": [], "bumps": [], "constraints": []}
     rng = (maxs - mins).clamp_min(1e-12)
     ro = {**readout}
 
@@ -197,31 +200,47 @@ def normalize_readout_to_unit_box(
             continue
 
         mu_vec = torch.tensor(list(mu), dtype=DTYPE, device=mins.device)
-        # If mu already looks unit-scaled, keep it; otherwise normalize from raw.
-        if float(mu_vec.max().item()) <= 1.0 and float(mu_vec.min().item()) >= 0.0:
-            mu_norm = mu_vec.clamp(1e-6, 1 - 1e-6)
-        else:
-            mu_norm = ((mu_vec - mins) / rng).clamp(1e-6, 1 - 1e-6)
+        mu_norm = ((mu_vec - mins) / rng).clamp(1e-6, 1 - 1e-6)
 
         if isinstance(sigma, (list, tuple)):
             sigma_vec = torch.tensor(list(sigma), dtype=DTYPE, device=mins.device)
-            if float(sigma_vec.max().item()) <= 1.0 and float(sigma_vec.min().item()) >= 0.0:
-                sigma_norm = sigma_vec.clamp_min(1e-6)
-            else:
-                sigma_norm = (sigma_vec / rng).clamp_min(1e-6)
+            sigma_norm = (sigma_vec / rng).clamp_min(1e-6)
             sigma_out: Any = [float(v) for v in sigma_norm.detach().cpu().tolist()]
         else:
             sigma_scalar = float(sigma)
-            if 0.0 < sigma_scalar <= 1.0:
-                sigma_out = float(max(sigma_scalar, 1e-6))
-            else:
-                scale = torch.mean((torch.ones_like(rng) * sigma_scalar) / rng).clamp_min(1e-6)
-                sigma_out = float(scale.item())
+            scale = torch.mean((torch.ones_like(rng) * sigma_scalar) / rng).clamp_min(1e-6)
+            sigma_out = float(scale.item())
 
         bumps.append(
             {"mu": [float(v) for v in mu_norm.detach().cpu().tolist()], "sigma": sigma_out, "amp": float(amp)}
         )
     ro["bumps"] = bumps
+
+    # constraints: per-dimension forbidden intervals
+    constraints_out: List[Dict[str, Any]] = []
+    for c in ro.get("constraints", []) or []:
+        if not isinstance(c, dict):
+            continue
+        var = c.get("var", None)
+        r = c.get("range", None)
+        if var is None or not isinstance(r, (list, tuple)) or len(r) != 2:
+            continue
+        dim_idx = _dim_index(str(var))
+        if dim_idx is None:
+            continue
+
+        low = float(r[0])
+        high = float(r[1])
+        low_n = float(((low - mins[dim_idx]) / rng[dim_idx]).clamp(1e-6, 1 - 1e-6).item())
+        high_n = float(((high - mins[dim_idx]) / rng[dim_idx]).clamp(1e-6, 1 - 1e-6).item())
+        if high_n < low_n:
+            low_n, high_n = high_n, low_n
+
+        c_out = dict(c)
+        c_out["var"] = str(var)
+        c_out["range"] = [float(low_n), float(high_n)]
+        constraints_out.append(c_out)
+    ro["constraints"] = constraints_out
     return ro
 
 

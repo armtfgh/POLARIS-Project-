@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, Tuple, List
 import torch
 from torch import Tensor
@@ -20,6 +20,7 @@ class Prior:
     effects: Dict[str, Dict[str, Any]]
     interactions: List[Dict[str, Any]]
     bumps: List[Dict[str, Any]]
+    constraints: List[Dict[str, Any]] = field(default_factory=list)
     feature_names: Optional[List[str]] = None
 
     def __post_init__(self) -> None:
@@ -36,7 +37,7 @@ class Prior:
         if X.ndim == 1:
             X = X.unsqueeze(0)
         d = X.shape[-1]
-        out = torch.zeros(X.shape[:-1], device=X.device, dtype=X.dtype)
+        pos_signal = torch.zeros(X.shape[:-1], device=X.device, dtype=X.dtype)
 
         def _parse_dim(name: Any) -> Optional[int]:
             if isinstance(name, int):
@@ -87,13 +88,13 @@ class Prior:
                 width = max(abs(hi - lo) / 3.0, 0.05)
 
             if eff in {"increase", "increasing"}:
-                out = out + amp * _sigmoid(z, center=center)
+                pos_signal = pos_signal + amp * _sigmoid(z, center=center)
             elif eff in {"decrease", "decreasing"}:
-                out = out - amp * _sigmoid(z, center=center)
+                pos_signal = pos_signal - amp * _sigmoid(z, center=center)
             elif eff in {"nonmonotone-peak", "peak"}:
-                out = out + amp * _gauss1d(z, mu=center, s=width)
+                pos_signal = pos_signal + amp * _gauss1d(z, mu=center, s=width)
             elif eff in {"nonmonotone-valley", "valley"}:
-                out = out - amp * _gauss1d(z, mu=center, s=width)
+                pos_signal = pos_signal - amp * _gauss1d(z, mu=center, s=width)
             # "flat" or unknown => no contribution
 
         # ----- pairwise interactions -----
@@ -116,7 +117,7 @@ class Prior:
                 conf = 0.5
             amp = 0.2 * (strength if strength > 0 else 1.0) * conf
             term = (X[..., idx_a] * X[..., idx_b])
-            out = out + sign * amp * term
+            pos_signal = pos_signal + sign * amp * term
 
         # ----- bumps -----
         for bump in (self.bumps or []):
@@ -145,9 +146,39 @@ class Prior:
             amp = float(bump.get("amp", 0.1))
             diff = (X - mu) / sigma
             gauss = torch.exp(-0.5 * torch.sum(diff ** 2, dim=-1))
-            out = out + amp * gauss
+            pos_signal = pos_signal + amp * gauss
 
-        return out
+        # ----- constraints (negative knowledge; forbidden regions) -----
+        neg_penalty = torch.zeros_like(pos_signal)
+        for c in (self.constraints or []):
+            if not isinstance(c, dict):
+                continue
+            var = c.get("var", None)
+            r = c.get("range", None)
+            if var is None or not isinstance(r, (list, tuple)) or len(r) != 2:
+                continue
+            idx = _parse_dim(var)
+            if idx is None:
+                continue
+
+            lo = float(r[0])
+            hi = float(r[1])
+            if hi < lo:
+                lo, hi = hi, lo
+            lo = float(min(max(lo, 0.0), 1.0))
+            hi = float(min(max(hi, 0.0), 1.0))
+
+            strength = float(c.get("penalty", c.get("weight", 5.0)))
+            k = float(c.get("sharpness", c.get("k", 60.0)))
+
+            z = X[..., idx]
+            # Soft "inside interval" gate: ~1 inside [lo,hi], ~0 outside.
+            gate = torch.sigmoid(k * (z - lo)) - torch.sigmoid(k * (z - hi))
+            gate = gate.clamp(0.0, 1.0)
+            neg_penalty = neg_penalty + strength * gate
+
+        # m0(x) = positive signal - penalty
+        return pos_signal - neg_penalty
 
 from botorch.models.model import Model
 from botorch.models import SingleTaskGP

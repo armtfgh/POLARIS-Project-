@@ -2,6 +2,12 @@ PROMPT_HEADER = """
 You are a prior-designer for Bayesian Optimisation on a FINITE lookup table (all candidates are enumerated).
 Summarise plausible structure-activity trends as JSON: (i) main effects per variable, (ii) a handful of interactions,
 and (iii) 1-2 Gaussian bumps that bias the prior mean toward promising UGI reaction mixtures.
+
+Strategic priority shift:
+- In addition to "positive knowledge" (effects / interactions / bumps), you MUST identify "negative knowledge" as
+  explicit forbidden regions ("constraints") where the reaction is likely to fail, be unsafe, or be infeasible.
+- Constraints are STRICTLY MORE IMPORTANT than effects/bumps. If you believe a region is bad, mark it as a constraint
+  even if other trends suggest it could be good.
 """
 
 UGI_DATASET_CONTEXT = """
@@ -29,6 +35,10 @@ RESPONSE FORMAT (STRICT JSON; no prose, and REPLACE ALL PLACEHOLDER NUMBERS WITH
   ],
   "bumps": [
     {"mu": [<x1_raw>, <x2_raw>, <x3_raw>, <x4_raw>], "sigma": [<sx1>, <sx2>, <sx3>, <sx4>], "amp": <float>}
+  ],
+  "constraints": [
+    {"var": "x1", "range": [<low_raw>, <high_raw>], "reason": "<why this region is forbidden>"},
+    {"var": "x3", "range": [<low_raw>, <high_raw>], "reason": "<why this region is forbidden>"}
   ]
 }
 """
@@ -167,5 +177,4 @@ In summary, the reaction is primarily driven by high concentrations of aldehyde 
 # - Interactions: emphasise that keeping x1 clamped at the floor enables x3 saturation; any drift in x4 must stay coupled to high x2/x3.
 # """
 # )
-
 
