@@ -198,6 +198,7 @@ def _record_continuous_sample(
     *,
     method: str,
     iteration: int,
+    extra: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     raw = unit_to_raw(domain, x_unit.detach()).squeeze(0)
     rec: Dict[str, Any] = {
@@ -208,6 +209,8 @@ def _record_continuous_sample(
     }
     for j in range(raw.numel()):
         rec[f"x{j+1}"] = float(raw[j].item())
+    if extra:
+        rec.update(extra)
     return rec
 
 
@@ -361,6 +364,8 @@ def run_hybrid_continuous(
     raw_samples: int = 256,
     prior_strength: float = 1.0,
     rho_floor: float = 0.05,
+    use_alignment_guard: bool = False,
+    alignment_min: float = 0.0,
     constraint_hardness: float = 0.0,
     constraint_pool_size: int = 4096,
     early_prior_boost: bool = False,
@@ -377,6 +382,8 @@ def run_hybrid_continuous(
             raw_samples=raw_samples,
             prior_strength=prior_strength,
             rho_floor=rho_floor,
+            use_alignment_guard=use_alignment_guard,
+            alignment_min=alignment_min,
             constraint_hardness=constraint_hardness,
             constraint_pool_size=constraint_pool_size,
             early_prior_boost=early_prior_boost,
@@ -395,6 +402,8 @@ def run_hybrid_continuous(
             raw_samples=raw_samples,
             prior_strength=prior_strength,
             rho_floor=rho_floor,
+            use_alignment_guard=use_alignment_guard,
+            alignment_min=alignment_min,
             constraint_hardness=constraint_hardness,
             constraint_pool_size=constraint_pool_size,
             early_prior_boost=early_prior_boost,
@@ -416,6 +425,8 @@ def _run_hybrid_continuous_single(
     raw_samples: int,
     prior_strength: float,
     rho_floor: float,
+    use_alignment_guard: bool,
+    alignment_min: float,
     constraint_hardness: float,
     constraint_pool_size: int,
     early_prior_boost: bool,
@@ -444,11 +455,18 @@ def _run_hybrid_continuous_single(
             prior_vals = prior.m0_torch(pool).reshape(-1)
             idx_local = int(torch.argmax(prior_vals))
             x_next = pool[idx_local]
+            rho = float("nan")
+            m0_scale = float("nan")
+            guarded = False
         else:
             gp_resid, alpha = fit_residual_gp(X_obs, Y_obs, prior)
             rho = alignment_on_obs(X_obs, Y_obs, prior)
-            rho_weight = max(abs(float(rho)), rho_floor)
-            m0_scale = float(alpha * prior_strength * rho_weight)
+            guarded = bool(use_alignment_guard and float(rho) < float(alignment_min))
+            if guarded:
+                m0_scale = 0.0
+            else:
+                rho_weight = max(abs(float(rho)), rho_floor)
+                m0_scale = float(alpha * prior_strength * rho_weight)
             model_total = GPWithPriorMean(gp_resid, prior, m0_scale=m0_scale)
 
             best_f = float(Y_obs.max().item())
@@ -489,7 +507,17 @@ def _run_hybrid_continuous_single(
 
         y_val = float(y_next.item())
         best = max(best, y_val)
-        recs.append(_record_continuous_sample(domain, x_next, y_val, best, method="hybrid_manual", iteration=t))
+        recs.append(
+            _record_continuous_sample(
+                domain,
+                x_next,
+                y_val,
+                best,
+                method="hybrid_manual",
+                iteration=t,
+                extra={"rho": rho, "m0_scale": m0_scale, "guarded": guarded},
+            )
+        )
 
     df = pd.DataFrame(recs)
     df["seed"] = seed
@@ -506,6 +534,8 @@ def run_manual_prior_benchmark(
     repeats: int = 5,
     prior_strength: float = 1.0,
     rho_floor: float = 0.05,
+    use_alignment_guard: bool = False,
+    alignment_min: float = 0.0,
     constraint_hardness: float = 0.0,
     constraint_pool_size: int = 4096,
     early_prior_boost: bool = False,
@@ -527,6 +557,8 @@ def run_manual_prior_benchmark(
         manual_readout=manual_readout,
         prior_strength=prior_strength,
         rho_floor=rho_floor,
+        use_alignment_guard=use_alignment_guard,
+        alignment_min=alignment_min,
         constraint_hardness=constraint_hardness,
         constraint_pool_size=constraint_pool_size,
         early_prior_boost=early_prior_boost,
@@ -576,6 +608,53 @@ def plot_runs_mean_lookup(
         ax.set_title(title)
     ax.grid(True, alpha=0.35)
     ax.legend()
+    plt.tight_layout()
+    return ax
+
+
+def plot_alignment_over_time(
+    hist_df: pd.DataFrame,
+    *,
+    method: str = "hybrid_manual",
+    ci: str = "sd",
+    ax: Optional[plt.Axes] = None,
+    title: Optional[str] = None,
+) -> plt.Axes:
+    if ax is None:
+        _, ax = plt.subplots(figsize=(7.5, 4.5))
+
+    df = hist_df.copy()
+    df = df[(df["method"] == method) & (df["iter"] >= 0)].copy()
+    if "rho" not in df.columns:
+        raise ValueError("alignment data not found (missing 'rho' column).")
+
+    agg = df.groupby("iter")["rho"].agg(["mean", "std", "count"]).reset_index()
+    if ci == "sem":
+        err = agg["std"] / np.maximum(agg["count"], 1).pow(0.5)
+    elif ci == "95ci":
+        err = 1.96 * agg["std"] / np.maximum(agg["count"], 1).pow(0.5)
+    else:
+        err = agg["std"]
+    x = agg["iter"].to_numpy()
+    y = agg["mean"].to_numpy()
+    e = err.to_numpy()
+
+    ax.plot(x, y, label="alignment (rho)")
+    ax.fill_between(x, y - e, y + e, alpha=0.20)
+    ax.axhline(0.0, color="gray", linestyle="--", linewidth=1.0, alpha=0.6)
+    ax.set_xlabel("Iteration")
+    ax.set_ylabel("Alignment (rho)")
+
+    if "guarded" in df.columns:
+        guard_rate = df.groupby("iter")["guarded"].mean().reset_index()
+        ax2 = ax.twinx()
+        ax2.plot(guard_rate["iter"], guard_rate["guarded"], color="#c44e52", label="guard rate")
+        ax2.set_ylabel("Guard rate")
+
+    if title:
+        ax.set_title(title)
+    ax.grid(True, alpha=0.35)
+    ax.legend(loc="upper left")
     plt.tight_layout()
     return ax
 
@@ -818,23 +897,25 @@ if __name__ == "__main__":
     domain = build_continuous_domain()
 
     manual_readout = {
-        "effects": {
-            "x4": {"effect": "nonmonotone-peak", "scale": 0.6, "confidence": 0.9, "range_hint": [0.11, 0.13]},
-        },
         "constraints": [
-            {"var": "x4", "range": [0, 0.02], "reason": "ptsa too high", "penalty": 8.0},
+            {"var": "x4", "range": [0, 0.1], "reason": "ptsa too high", "penalty": 8.0},
+            {"var": "x4", "range": [0.18, 0.3], "reason": "ptsa too high", "penalty": 8.0},
+            {"var": "x1", "range": [200, 300.0], "reason": "high amine suppresses yield", "penalty": 8.0},
+
         ],
     }
 
     hist = run_manual_prior_benchmark(
         domain,
         manual_readout,
-        seed=2,
+        seed=12,
         n_init=6,
-        n_iter=25,
-        repeats=50,
-        constraint_hardness=1,
+        n_iter=100,
+        repeats=5,
+        constraint_hardness=0.2,
         constraint_pool_size=20000,
+        use_alignment_guard=False,
+        alignment_min=0.0,
         early_prior_boost=True,
         early_prior_steps=5,
         prior_strength=1
@@ -853,9 +934,73 @@ if __name__ == "__main__":
     summary, per_run, regret = score_benchmark(hist, domain)
     plot_simple_regret(regret, ci="sem", title="Simple Regret")
     plot_metric_bars(summary, metric="composite_score_median", title="Composite Score (Median)")
+    plot_alignment_over_time(hist, method="hybrid_manual", ci="sem", title="Alignment over time")
 
     print(summary.sort_values("composite_score_median", ascending=False).to_string(index=False))
     plt.show()
+
+
+    
+#%%
+    # Safety fallback demo with a bad prior (toggle guard on/off)
+    RUN_BAD_PRIOR_DEMO = True
+    if RUN_BAD_PRIOR_DEMO:
+        bad_readout = {
+            "effects": {
+                "x4": {"effect": "decreasing", "scale": 0.8, "confidence": 0.9, "range_hint": [0.20, 0.30]},
+            },
+            "constraints": [
+                {"var": "x4", "range": [0.10, 0.14], "reason": "push away from optimum", "penalty": 8.0},
+            ],
+        }
+
+        hist_bad_no = run_manual_prior_benchmark(
+            domain,
+            bad_readout,
+            seed=3,
+            n_init=6,
+            n_iter=100,
+            repeats=5,
+            use_alignment_guard=False,
+        )
+        hist_bad_guard = run_manual_prior_benchmark(
+            domain,
+            bad_readout,
+            seed=3,
+            n_init=6,
+            n_iter=100,
+            repeats=5,
+            use_alignment_guard=True,
+            alignment_min=0.2,
+        )
+
+        df_bad_no = hist_bad_no[hist_bad_no["method"] == "hybrid_manual"].copy()
+        df_bad_guard = hist_bad_guard[hist_bad_guard["method"] == "hybrid_manual"].copy()
+        df_bad_no["method"] = "hybrid_bad_no_guard"
+        df_bad_guard["method"] = "hybrid_bad_guard"
+        bad_hist = pd.concat([df_bad_no, df_bad_guard], ignore_index=True)
+
+        plot_runs_mean_lookup(
+            bad_hist,
+            methods=["hybrid_bad_no_guard", "hybrid_bad_guard"],
+            ci="sem",
+            title="Bad prior: guard comparison (best-so-far)",
+        )
+        opt_bad = estimate_optimum(domain, n_samples=4096, seed=99)
+        regret_bad = compute_simple_regret_curve(bad_hist, optimum=opt_bad, include_init=False)
+        plot_simple_regret(
+            regret_bad,
+            methods=["hybrid_bad_no_guard", "hybrid_bad_guard"],
+            ci="sem",
+            title="Bad prior: guard comparison (regret)",
+        )
+
+        score_no = score_benchmark(hist_bad_no, domain)[0]
+        score_guard = score_benchmark(hist_bad_guard, domain)[0]
+        print("Bad prior (no guard) composite median:",
+              score_no["composite_score_median"].median())
+        print("Bad prior (guard on) composite median:",
+              score_guard["composite_score_median"].median())
 
 
 # %%
