@@ -944,34 +944,42 @@ if __name__ == "__main__":
 #%%
     # Safety fallback demo with a bad prior (toggle guard on/off)
     RUN_BAD_PRIOR_DEMO = True
+    domain = build_continuous_domain()
+
     if RUN_BAD_PRIOR_DEMO:
         bad_readout = {
             "effects": {
-                "x4": {"effect": "decreasing", "scale": 0.8, "confidence": 0.9, "range_hint": [0.20, 0.30]},
+                "x4": {"effect": "decreasing", "scale": 0.8, "confidence": 0.9, "range_hint": [0, 0.03]},
             },
             "constraints": [
-                {"var": "x4", "range": [0.10, 0.14], "reason": "push away from optimum", "penalty": 8.0},
+                {"var": "x4", "range": [0.10, 0.3], "reason": "push away from optimum", "penalty": 8.0},
             ],
         }
 
         hist_bad_no = run_manual_prior_benchmark(
             domain,
             bad_readout,
-            seed=3,
+            seed=64,
             n_init=6,
             n_iter=100,
-            repeats=5,
+            repeats=3,
             use_alignment_guard=False,
+            constraint_hardness=1.0,
+            constraint_pool_size=20000,
+            prior_strength=1
         )
         hist_bad_guard = run_manual_prior_benchmark(
             domain,
             bad_readout,
-            seed=3,
+            seed=64,
             n_init=6,
             n_iter=100,
-            repeats=5,
+            repeats=3,
             use_alignment_guard=True,
-            alignment_min=0.2,
+            alignment_min=0.4,
+            constraint_hardness=1.0,
+            constraint_pool_size=20000,
+            prior_strength=1
         )
 
         df_bad_no = hist_bad_no[hist_bad_no["method"] == "hybrid_manual"].copy()
