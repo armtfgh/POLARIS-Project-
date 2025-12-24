@@ -34,6 +34,7 @@ import matplotlib.pyplot as plt
 
 from data_analysis import build_ugi_ml_oracle, RandomForestOracle
 from prior_gp import alignment_on_obs, fit_residual_gp, GPWithPriorMean
+from data_to_prior import get_data_derived_prior
 from readout_schema import readout_to_prior, flat_readout, normalize_readout_to_unit_box
 
 warnings.filterwarnings("ignore")
@@ -581,6 +582,93 @@ def run_manual_prior_benchmark(
     return pd.concat(dfs, ignore_index=True)
 
 
+def run_data_prior_benchmark(
+    domain: ContinuousDomain,
+    *,
+    csv_path: str,
+    fraction: float = 0.10,
+    data_seed: int = 0,
+    feature_names: Optional[List[str]] = None,
+    target_col: str = "yield",
+    llm_model: str = "gpt-4o-mini",
+    llm_temperature: float = 0.2,
+    llm_max_tokens: int = 800,
+    api_key: Optional[str] = None,
+    n_init: int = 6,
+    n_init_baseline: Optional[int] = None,
+    n_init_hybrid: Optional[int] = None,
+    n_init_random: Optional[int] = None,
+    n_iter: int = 25,
+    seed: int = 0,
+    repeats: int = 5,
+    prior_strength: float = 1.0,
+    rho_floor: float = 0.05,
+    use_alignment_guard: bool = False,
+    alignment_min: float = 0.0,
+    constraint_hardness: float = 0.0,
+    constraint_pool_size: int = 4096,
+    early_prior_boost: bool = False,
+    early_prior_steps: int = 5,
+    include_random: bool = True,
+) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    feat_names = feature_names or domain.feature_names
+    readout = get_data_derived_prior(
+        csv_path=csv_path,
+        fraction=fraction,
+        seed=data_seed,
+        feature_names=feat_names,
+        target_col=target_col,
+        model=llm_model,
+        temperature=llm_temperature,
+        max_tokens=llm_max_tokens,
+        api_key=api_key,
+    )
+    base_init = int(n_init_baseline) if n_init_baseline is not None else int(n_init)
+    hyb_init = int(n_init_hybrid) if n_init_hybrid is not None else int(n_init)
+    rand_init = int(n_init_random) if n_init_random is not None else int(base_init)
+
+    dfs: List[pd.DataFrame] = []
+    if include_random:
+        rand = run_random_continuous(
+            domain,
+            n_init=rand_init,
+            n_iter=n_iter,
+            seed=seed,
+            repeats=repeats,
+        )
+        dfs.append(rand)
+
+    base = run_baseline_ei_continuous(
+        domain,
+        n_init=base_init,
+        n_iter=n_iter,
+        seed=seed,
+        repeats=repeats,
+    )
+    dfs.append(base)
+
+    hyb = run_hybrid_continuous(
+        domain,
+        n_init=hyb_init,
+        n_iter=n_iter,
+        seed=seed,
+        repeats=repeats,
+        manual_readout=readout,
+        prior_strength=prior_strength,
+        rho_floor=rho_floor,
+        use_alignment_guard=use_alignment_guard,
+        alignment_min=alignment_min,
+        constraint_hardness=constraint_hardness,
+        constraint_pool_size=constraint_pool_size,
+        early_prior_boost=early_prior_boost,
+        early_prior_steps=early_prior_steps,
+    )
+    dfs.append(hyb)
+
+    hist = pd.concat(dfs, ignore_index=True)
+    return hist, readout
+
+
 def plot_runs_mean_lookup(
     hist_df: pd.DataFrame,
     *,
@@ -952,30 +1040,51 @@ def plot_metric_bars(
 if __name__ == "__main__":
     domain = build_continuous_domain()
 
-    manual_readout = {
-        "constraints": [
-            {"var": "x4", "range": [0, 0.1], "reason": "ptsa too high", "penalty": 8.0},
-            {"var": "x4", "range": [0.18, 0.3], "reason": "ptsa too high", "penalty": 8.0},
-            {"var": "x1", "range": [200, 300.0], "reason": "high amine suppresses yield", "penalty": 8.0},
+    RUN_DATA_PRIOR_BENCH = True  # Set True to derive the prior from data via the LLM.
 
-        ],
-    }
+    if RUN_DATA_PRIOR_BENCH:
+        hist, data_readout = run_data_prior_benchmark(
+            domain,
+            csv_path="ugi_merged_dataset.csv",
+            fraction=0.10,
+            data_seed=56,
+            n_init_baseline=1,
+            n_init_hybrid=1,
+            n_iter=100,
+            repeats=5,
+            constraint_hardness=0.2,
+            constraint_pool_size=20000,
+            use_alignment_guard=False,
+            alignment_min=0.0,
+            early_prior_boost=True,
+            early_prior_steps=5,
+            prior_strength=1,
+            llm_model="gpt-4o-mini",
+        )
+    else:
+        manual_readout = {
+            "constraints": [
+                {"var": "x4", "range": [0, 0.1], "reason": "ptsa too high", "penalty": 8.0},
+                {"var": "x4", "range": [0.18, 0.3], "reason": "ptsa too high", "penalty": 8.0},
+                {"var": "x1", "range": [200, 300.0], "reason": "high amine suppresses yield", "penalty": 8.0},
+            ],
+        }
 
-    hist = run_manual_prior_benchmark(
-        domain,
-        manual_readout,
-        seed=12,
-        n_init=6,
-        n_iter=100,
-        repeats=5,
-        constraint_hardness=0.2,
-        constraint_pool_size=20000,
-        use_alignment_guard=False,
-        alignment_min=0.0,
-        early_prior_boost=True,
-        early_prior_steps=5,
-        prior_strength=1
-    )
+        hist = run_manual_prior_benchmark(
+            domain,
+            manual_readout,
+            seed=12,
+            n_init=6,
+            n_iter=100,
+            repeats=5,
+            constraint_hardness=0.2,
+            constraint_pool_size=20000,
+            use_alignment_guard=False,
+            alignment_min=0.0,
+            early_prior_boost=True,
+            early_prior_steps=5,
+            prior_strength=1,
+        )
     plot_runs_mean_lookup(hist, ci="sem", title="Best-so-far")
 
     # Simple compliance check for x4 within [a, b] on hybrid (exclude init iters)
